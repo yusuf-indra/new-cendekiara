@@ -11,7 +11,7 @@ from cendekiara.core.errors import AppError
 if TYPE_CHECKING:
     from cendekiara.core.store import Store
 
-Via = Literal["web", "app", "cli", "job", "command"]
+Via = Literal["web", "app", "cli", "job", "command", "remote"]
 
 
 @dataclass(frozen=True)

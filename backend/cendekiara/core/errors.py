@@ -8,10 +8,13 @@ HTTP_STATUS: dict[str, int] = {
     "unknown_command": 404,
     "not_found": 404,  # also used for data owned by someone else (never 403)
     "login_required": 401,
+    "invalid_token": 401,  # a credential that could not be verified
     "admin_only": 404,  # hide admin commands from non-admins
+    "method_not_allowed": 405,  # GET is only for readonly commands
     "conflict": 409,
     "deadline_passed": 409,
     "quota_exceeded": 402,
+    "server_error": 500,
 }
 
 

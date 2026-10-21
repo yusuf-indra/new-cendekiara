@@ -1,0 +1,155 @@
+"""The auth layer: dev tokens, Firebase ID tokens and admin API tokens."""
+
+from __future__ import annotations
+
+import hashlib
+
+import pytest
+
+from cendekiara.core.auth import (
+    Authenticator,
+    DevTokenVerifier,
+    FirebaseTokenVerifier,
+    bearer_token,
+    generate_token,
+    hash_token,
+)
+from cendekiara.core.config import Settings
+from cendekiara.core.context import Actor
+from cendekiara.core.errors import AppError
+from cendekiara.core.store import MemoryStore
+
+SETTINGS = Settings(_env_file=None, app_env="dev", auth_mode="dev", admin_emails=["boss@example.com"])
+
+
+def test_a_dev_token_gives_the_uid() -> None:
+    identity = Authenticator(SETTINGS, MemoryStore()).authenticate("Bearer dev:u-siti")
+    assert identity.actor.uid == "u-siti"
+    assert identity.actor.is_admin is False
+    assert identity.via == "web"
+
+
+def test_the_dev_admin_token_is_an_admin() -> None:
+    identity = Authenticator(SETTINGS, MemoryStore()).authenticate("Bearer dev:admin")
+    assert identity.actor.is_admin is True
+
+
+def test_a_dev_token_of_an_admin_email_is_an_admin() -> None:
+    identity = Authenticator(SETTINGS, MemoryStore()).authenticate("Bearer dev:boss@example.com")
+    assert identity.actor.is_admin is True
+    assert identity.actor.email == "boss@example.com"
+
+
+def test_a_malformed_header_is_anonymous() -> None:
+    authenticator = Authenticator(SETTINGS, MemoryStore())
+    assert authenticator.authenticate("Basic abc").actor.uid is None
+    assert authenticator.authenticate("Bearer").actor.uid is None
+    assert authenticator.authenticate(None).actor.uid is None
+
+
+def test_a_token_that_is_not_a_dev_token_is_refused() -> None:
+    authenticator = Authenticator(SETTINGS, MemoryStore())
+    with pytest.raises(AppError) as err:
+        authenticator.authenticate("Bearer nonsense")
+    assert err.value.code == "invalid_token"
+
+
+def test_the_dev_verifier_refuses_a_prod_profile() -> None:
+    prod = Settings(_env_file=None, app_env="prod", store="firestore", auth_mode="firebase")
+    with pytest.raises(AppError) as err:
+        DevTokenVerifier(prod)
+    assert err.value.code == "invalid_args"
+
+
+def test_bearer_token_reads_the_header() -> None:
+    assert bearer_token("Bearer abc") == "abc"
+    assert bearer_token("bearer abc") == "abc"
+    assert bearer_token("Token abc") is None
+    assert bearer_token("") is None
+    assert bearer_token(None) is None
+
+
+def test_an_api_token_acts_as_the_admin_who_created_it() -> None:
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    identity = Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
+    assert identity.actor.uid == "u-admin"
+    assert identity.actor.is_admin is True
+    assert identity.via == "remote"
+
+
+def test_an_api_token_is_remembered_as_used() -> None:
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
+    assert store.get("api_tokens", token_id) is not None
+    assert store.get("api_tokens", token_id)["lastUsedAt"]  # type: ignore[index]
+
+
+def test_a_revoked_api_token_is_refused() -> None:
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set(
+        "api_tokens",
+        token_id,
+        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "revokedAt": "2026-10-21T12:00:00+00:00"},
+    )
+    with pytest.raises(AppError) as err:
+        Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
+    assert err.value.code == "invalid_token"
+
+
+def test_an_unknown_api_token_is_refused() -> None:
+    with pytest.raises(AppError) as err:
+        Authenticator(SETTINGS, MemoryStore()).authenticate(f"Bearer {generate_token()}")
+    assert err.value.code == "invalid_token"
+
+
+def test_a_token_is_stored_as_its_hash_only() -> None:
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    assert token_id == hashlib.sha256(token.encode("utf-8")).hexdigest()
+    assert token not in str(store.list("api_tokens"))
+
+
+def test_the_firebase_verifier_reads_the_claims() -> None:
+    verifier = FirebaseTokenVerifier(SETTINGS, decoder=lambda token: {"uid": "u-siti", "email": "a@b.c"})
+    actor = verifier.verify("an-id-token")
+    assert actor.uid == "u-siti"
+    assert actor.email == "a@b.c"
+    assert actor.is_admin is False
+
+
+def test_the_firebase_verifier_marks_an_admin_email() -> None:
+    verifier = FirebaseTokenVerifier(
+        SETTINGS, decoder=lambda token: {"uid": "u-boss", "email": "boss@example.com"}
+    )
+    assert verifier.verify("an-id-token").is_admin is True
+
+
+def test_the_firebase_verifier_refuses_a_broken_token() -> None:
+    def boom(token: str) -> dict[str, str]:
+        raise ValueError("expired")
+
+    verifier = FirebaseTokenVerifier(SETTINGS, decoder=boom)
+    with pytest.raises(AppError) as err:
+        verifier.verify("an-id-token")
+    assert err.value.code == "invalid_token"
+
+
+def test_the_firebase_verifier_refuses_a_token_without_a_uid() -> None:
+    verifier = FirebaseTokenVerifier(SETTINGS, decoder=lambda token: {"email": "a@b.c"})
+    with pytest.raises(AppError) as err:
+        verifier.verify("an-id-token")
+    assert err.value.code == "invalid_token"
+
+
+def test_the_actor_of_the_system_is_an_admin() -> None:
+    assert Actor.system().is_admin is True
