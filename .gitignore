@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+# Node / frontend
+node_modules/
+frontend/dist/
+android/app/build/
+android/.gradle/
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+google-services.json
+*.keystore
+*.jks
+# Firebase
+.firebase/
+firebase-debug*.log
