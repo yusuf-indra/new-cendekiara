@@ -18,7 +18,7 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
 | `item_keys/{itemId}` | answers, explanations, transcripts, `aiCheck`. **Server only, never sent before submit.** | `item.*` (admin) |
 | `families/{familyId}` | near-identical questions: name, `method` (shared solution), optional video link | `family.*` |
 | `tests/{testId}` | a package: exam, sections → `itemIds`, duration, `free`, `wrongPenalty`, status | `test.*` (admin) |
-| `attempts/{attemptId}` | uid, testId or embedded practice package, mode, answers, timings, flags, deadline, status, result | `attempt.*` |
+| `attempts/{attemptId}` | uid, testId or embedded practice package (snapshot), mode, answers, timings, flags, deadlineAt, status (in_progress/paused/submitted), result (scored only on submit), free, wrongPenalty | `attempt.*` |
 | `question_stats/{questionId}` | increments from Exam mode: count, correct, blank, flagged, time histogram, option picks, discrimination data | worker after `attempt.submit` |
 | `leaderboard/{testId}__{uid}` | first Exam attempt per package: score, week, month, display name | worker |
 | `articles/{slug}` | blog: lang, title, markdown body, `math`, `sites`, status | `article.*` (admin) |

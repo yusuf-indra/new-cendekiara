@@ -56,3 +56,71 @@ class ApiToken(Model):
     created_at: str
     last_used_at: str | None = None
     revoked_at: str | None = None
+
+
+class AttemptFlag(Model):
+    """A flagged question in an attempt."""
+
+    question_id: str
+    item_id: str | None = None
+
+
+class AttemptAnswer(Model):
+    """An answer stored in an attempt."""
+
+    question_id: str
+    answer: list[str] | str
+
+
+class AttemptTimings(Model):
+    """Time spent per question (seconds)."""
+
+    question_id: str
+    seconds: float
+
+
+class AttemptResultSection(Model):
+    """Per-section result for an attempt."""
+
+    correct: int = 0
+    wrong: int = 0
+    blank: int = 0
+    marks: float = 0.0
+    score: float | None = None
+
+
+class AttemptResult(Model):
+    """The result of a submitted attempt."""
+
+    score: float | None = None
+    score_type: str | None = None
+    correct: int = 0
+    wrong: int = 0
+    blank: int = 0
+    sections: dict[str, AttemptResultSection] = {}
+    raw_sections: dict[str, dict[str, float | int]] = {}
+
+
+class Attempt(Model):
+    """`attempts/{attemptId}`: a running or submitted attempt."""
+
+    id: str
+    uid: str
+    mode: Literal["exam", "practice", "study"] = "exam"
+    test_id: str | None = None
+    exam: str | None = None
+    package_snapshot: dict[str, Any] | None = None
+    status: Literal["in_progress", "paused", "submitted"] = "in_progress"
+    answers: dict[str, list[str] | str] = {}
+    timings: dict[str, float] = {}
+    flags: list[str] = []
+    deadline_at: str | None = None
+    started_at: str
+    updated_at: str | None = None
+    paused_at: str | None = None
+    submitted_at: str | None = None
+    free: bool = False
+    wrong_penalty: float = 0.0
+    duration_sec: int | None = None
+    result: AttemptResult | None = None
+    admin_read_logged: bool = False

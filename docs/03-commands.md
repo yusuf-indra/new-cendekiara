@@ -150,7 +150,7 @@ with the `tests/` documents it reads.
 | `system` | `system.health` |
 | `user` | `user.me`, `user.set_language`, `user.update_profile` |
 | `catalog` | `catalog.categories`, `catalog.exam` (Phase 2); `catalog.tests` (Phase 3) — public, cached |
-| `attempt` | `attempt.start`, `attempt.save`, `attempt.submit`, `attempt.pause`, `attempt.resume`, `attempt.get`, `attempt.history` |
+| `attempt` | `attempt.start` (calls `core/assemble.py` directly), `attempt.save`, `attempt.submit`, `attempt.get`, `attempt.history`, `attempt.pause`, `attempt.resume` |
 | `practice` | `practice.build` (from bank: section, topics, difficulty, count, timer) |
 | `study` | `study.next`, `study.check` (server-graded) |
 | `item` | `item.create`, `item.update`, `item.import` (queued), `item.validate`, `item.retire` — Phase 3; later `item.public_get` (public), `item.mark`, `item.report` |

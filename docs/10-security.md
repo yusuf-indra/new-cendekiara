@@ -81,3 +81,14 @@
   colours, logo and identity are Cendekiara's.
 - Always show that scores are **estimates** and that the product is not
   affiliated with the owners of IELTS, Bappenas, BKN or PKN STAN.
+
+
+## Exam engine security
+
+- **Ownership**: Attempts are owned by `uid`. Owner may read/save/submit/pause/resume. An admin may READ (`attempt.get`) any attempt for support, but may NOT save, submit, pause or resume another user's attempt (→ `not_found` for non-owners so existence is not revealed). The acting uid is logged on admin reads.
+- **Server time only**: The server alone decides time; client timestamps are never trusted. `attempt.save` after `deadline + SUBMIT_GRACE_SEC` → refused; `attempt.submit` grades only the stored answers (it does not accept final answers; it may carry a final timings map).
+- **Immutability**: A submitted attempt is immutable (`save`/`submit`/`pause`/`resume` → `conflict`).
+- **Key leakage**: Keys/explanations read only at submit/result time, only revealed when the exam's rules allow; in-progress `attempt.get`, `attempt.start`, `attempt.save` and `attempt.history` never contain key values, explanations, transcripts or `aiCheck`.
+- **Practice/study isolation**: `practice.build` and `study.next` only use items that are NOT referenced by any `tests/` document (any status) — exam-package items never appear in practice or study, so their keys cannot be harvested. `study.check` on an exam-package item → `not_found`.
+- **Rate/size limits**: Rate/size limits on `attempt.save` and `study.check` (in-memory limiter, `rate_limited` error; max answer size).
+- **Practice rules**: Practice sets have no timer by default (client may send `durationSec`); the same package may be taken multiple times; `attempt.save` merges answers/timings per key and replaces the flag list; store `free` on the attempt, no entitlement check until Phase 10.
