@@ -1,6 +1,7 @@
-"""`cendekiara` CLI: list the commands, run one on this machine.
+"""`cendekiara` CLI: list the commands, run one on this machine or on a server.
 
-`--remote` (run through the API with an admin token) arrives in Phase 1.
+`--remote <url>` runs the command through the API of another server with an
+admin API token (`CENDEKIARA_TOKEN`); it needs no local store or credentials.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 import typer
 from pydantic import ValidationError
 
-from cendekiara.core import registry
+from cendekiara.core import registry, remote
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.errors import AppError
 from cendekiara.core.logging import setup_logging
@@ -102,9 +103,16 @@ def run_command(
         list[str] | None,
         typer.Option("--arg", "-a", help="Argument as key=value; repeatable."),
     ] = None,
+    remote_url: Annotated[
+        str | None,
+        typer.Option("--remote", help="Base URL of a server: run the command through its API."),
+    ] = None,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Log at the configured level.")] = False,
 ) -> None:
-    """Run one command here; the result is JSON on stdout, errors are JSON on stderr."""
+    """Run one command here or on a server; the result is JSON on stdout."""
+    if remote_url:
+        _run_remote(name, arg or [], remote_url)
+        return
     settings = _load_settings()
     setup_logging(settings.log_level if verbose else "WARNING")
     registry.load_all()
@@ -114,6 +122,27 @@ def run_command(
     except AppError as exc:
         _fail(exc)
     typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def _run_remote(name: str, items: list[str], base_url: str) -> None:
+    """Run a command through the API of another server, with an admin API token."""
+    token = _remote_token()
+    if not token:
+        typer.echo("Error: CENDEKIARA_TOKEN is not set", err=True)
+        raise typer.Exit(code=1)
+    try:
+        args = _parse_args(items)
+        payload = remote.run_remote(name, args, base_url, token)
+    except AppError as exc:
+        _fail(exc)
+    typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def _remote_token() -> str | None:
+    """The admin API token of the remote CLI (never logged)."""
+    from cendekiara.core.config import RemoteConfig
+
+    return RemoteConfig().cendekiara_token
 
 
 if __name__ == "__main__":  # pragma: no cover
