@@ -119,6 +119,13 @@ topped up. The `opencode/*` free models still work.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — Tests: the job queue never starts a thread in the test
+  suite: `tests/conftest.py` replaces `jobs._dispatch` (`no_background_dispatch`,
+  autouse), so a test that runs the job itself (`jobs.run_job`) cannot race the
+  inline worker and read the job while it still runs. The inline thread stays
+  covered by one test that asks for the real dispatcher (`real_dispatch`) and
+  waits for the job to finish. The production behaviour is unchanged.
+
 - 2026-10-21 — Jobs: unexpected errors fail the job with `internal_error`;
   Cloud Tasks OIDC audience is `WORKER_URL`. A job always ends (`done` or
   `failed`): a bad stored argument fails with `invalid_args`, a bug in a

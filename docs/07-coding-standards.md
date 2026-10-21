@@ -54,6 +54,10 @@ When in doubt, copy the closest existing file.
 
 - Every command: happy path + login/ownership/validation errors, using the
   `ctx`, `admin_ctx`, `guest_ctx`, `mem` fixtures (`tests/conftest.py`).
+- Jobs: the queue never starts a thread in a test (`no_background_dispatch`
+  replaces the dispatch), so a test that runs the job itself never races the
+  inline worker. The inline thread is covered by one test that asks for the
+  real dispatcher (`real_dispatch`) and waits for the job to finish.
 - Every scoring and question-type plugin: table-driven tests.
 - Public pages: render test (status 200, key text, no answer key in HTML).
 - Frontend: Vitest for hooks and plugins; no snapshot-only tests.
