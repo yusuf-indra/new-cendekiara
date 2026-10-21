@@ -1,0 +1,39 @@
+{
+  "tpa-k-0101": {
+    "id": "tpa-k-0101",
+    "answers": {"q1": ["B"]},
+    "explanations": {
+      "q1": "Beda antarbilangan berturut-turut adalah 3, 5, lalu 7. Beda berikutnya adalah 9, sehingga bilangan berikutnya adalah 17 + 9 = 26."
+    },
+    "transcript": null,
+    "aiCheck": null
+  },
+  "tpa-v-0101": {
+    "id": "tpa-v-0101",
+    "answers": {"q1": ["B"]},
+    "explanations": {
+      "q1": "Mukadimah berarti kata pendahuluan atau pembuka, sehingga sinonimnya adalah pendahuluan."
+    },
+    "transcript": null,
+    "aiCheck": null
+  },
+  "tpa-p-0101": {
+    "id": "tpa-p-0101",
+    "answers": {"q1": ["A"]},
+    "explanations": {
+      "q1": "Dari kedua premis, semua kucing termasuk mamalia dan semua mamalia bernapas dengan paru-paru, sehingga semua kucing bernapas dengan paru-paru."
+    },
+    "transcript": null,
+    "aiCheck": null
+  },
+  "ielts-r-0101": {
+    "id": "ielts-r-0101",
+    "answers": {"q1": ["B"], "q2": ["C"]},
+    "explanations": {
+      "q1": "The passage describes the library changing from a silent place into a busy community hub.",
+      "q2": "Paragraph B lists tools and musical instruments among what libraries now lend."
+    },
+    "transcript": null,
+    "aiCheck": null
+  }
+}

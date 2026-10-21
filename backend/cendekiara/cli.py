@@ -7,12 +7,13 @@ admin API token (`CENDEKIARA_TOKEN`); it needs no local store or credentials.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 
 import typer
 from pydantic import ValidationError
 
-from cendekiara.core import plugins, registry, remote
+from cendekiara.core import clock, plugins, registry, remote
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.errors import AppError
 from cendekiara.core.logging import setup_logging
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Cendekiara backend CLI.")
 commands_app = typer.Typer(no_args_is_help=True, help="Inspect the command registry.")
 app.add_typer(commands_app, name="commands")
+jobs_app = typer.Typer(no_args_is_help=True, help="Run a job file.")
+app.add_typer(jobs_app, name="jobs")
 
 
 def decode_arg_value(raw: str) -> Any:
@@ -145,6 +148,78 @@ def _remote_token() -> str | None:
     from cendekiara.core.config import RemoteConfig
 
     return RemoteConfig().cendekiara_token
+
+
+@jobs_app.command("run")
+def run_job_file(
+    file: Annotated[str, typer.Argument(help="Path to a JSON file: {steps: [{command, args}]}")],
+) -> None:
+    """Run a job file's steps as the system actor; JSON on stdout, exit 0/1."""
+    try:
+        settings = _load_settings()
+        setup_logging("WARNING")
+        registry.load_all()
+        plugins.load_all()
+        store = build_store(settings.store)
+        steps = _read_steps(file)
+    except AppError as exc:
+        _fail(exc)
+    results: list[dict[str, Any]] = []
+    ok = True
+    for step in steps:
+        command_name = step.get("command")
+        args = step.get("args", {})
+        started = clock.now()
+        if not isinstance(command_name, str) or not isinstance(args, dict):
+            results.append(
+                {
+                    "command": command_name,
+                    "ok": False,
+                    "error": {
+                        "code": "invalid_args",
+                        "message": "A step needs a 'command' and an 'args' object",
+                        "hint": None,
+                    },
+                    "seconds": 0.0,
+                }
+            )
+            ok = False
+            continue
+        ctx = Context(Actor.system(), store, site=settings.site, via="cli")
+        try:
+            result = registry.execute(command_name, args, ctx)
+            results.append(
+                {
+                    "command": command_name,
+                    "ok": True,
+                    "result": result.model_dump(by_alias=True, mode="json"),
+                    "seconds": round((clock.now() - started).total_seconds(), 3),
+                }
+            )
+        except AppError as exc:
+            ok = False
+            results.append(
+                {
+                    "command": command_name,
+                    "ok": False,
+                    "error": exc.to_dict(),
+                    "seconds": round((clock.now() - started).total_seconds(), 3),
+                }
+            )
+    typer.echo(json.dumps({"id": clock.now_iso(), "ok": ok, "steps": results}, indent=2, ensure_ascii=False))
+    raise typer.Exit(code=0 if ok else 1)
+
+
+def _read_steps(path: str) -> list[dict[str, Any]]:
+    """Read the ``{steps: [{command, args}]}`` job file."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AppError("invalid_args", f"Cannot read the job file: {exc}") from exc
+    steps = data.get("steps") if isinstance(data, dict) else None
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        raise AppError("invalid_args", "The job file must be {steps: [{command, args}]}")
+    return steps
 
 
 if __name__ == "__main__":  # pragma: no cover

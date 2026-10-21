@@ -16,7 +16,7 @@ class ChoiceQuestion(Model):
     options: list[Option] = Field(default_factory=list)
 
 
-@qtype("choice")
+@qtype("choice", ChoiceQuestion)
 def grade(question: ChoiceQuestion, key: list[str], answer: str) -> Marks:
     """1 mark when the single chosen option id is in the key."""
     correct = answer in key

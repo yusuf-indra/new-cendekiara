@@ -1,0 +1,16 @@
+{
+  "tpa-mini": {
+    "id": "tpa-mini",
+    "exam": "tpa-bappenas",
+    "sections": {
+      "kuantitatif": ["tpa-k-0101"],
+      "verbal": ["tpa-v-0101"],
+      "penalaran": ["tpa-p-0101"]
+    },
+    "durationSec": 180,
+    "free": true,
+    "wrongPenalty": 0,
+    "status": "active",
+    "sites": ["id"]
+  }
+}

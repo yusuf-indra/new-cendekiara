@@ -42,7 +42,7 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
   "status": "active",              // draft | review | active | retired
   "usage": {"exam": true, "practice": true, "study": false},
   "sites": ["id"],
-  "stimulus": null,                // passage {title, paragraphs[{label,text}]} | audio {url, ttsFallback} | image
+  "stimulus": null,                // {kind:"passage", title, paragraphs[{label,text}]} | {kind:"audio", url, ttsFallback} | {kind:"image", url}
   "groups": [
     {
       "id": "g1",
@@ -58,7 +58,25 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
 }
 ```
 
-`item_keys/{id}`: `{"answers": {"q1": ["C"]}, "explanations": {"q1": "…"}, "transcript": null, "aiCheck": {…}}`.
+`item_keys/{id}`: `{"id": "<itemId>", "answers": {"q1": ["C"]}, "explanations": {"q1": "…"}, "transcript": null, "aiCheck": {…}}`.
+The `stimulus` field is a pydantic discriminated union on `kind`
+(`passage` | `audio` | `image`); each variant carries only its own fields.
+
+`families/{familyId}`: `{"id", "name", "method": "…", "videoUrl": null}` —
+near-identical questions sharing one solution method.
+
+`tests/{testId}`: `{"id", "exam", "sections": {"<section>": ["<itemId>", …]},
+"durationSec": 180, "free": true, "wrongPenalty": 0, "status": "active",
+"sites": ["id"]}`. Section order and item order are the display order; question
+numbers are assigned on assembly, not stored.
+
+`jobs/{jobId}`: `{"id", "name", "args": {…}, "actor": {"uid", "email"},
+"createdBy": "<uid>", "status": "queued|running|done|failed",
+"result": {…} | null, "error": {"code","message","hint"} | null, "createdAt",
+"startedAt", "finishedAt"}`. The actor stores `{uid, email}` only — never an
+admin flag (it is re-checked at run time). `bank.export` stores its result
+(items + keys) in `result`, so a large export is bounded by Firestore's 1 MB
+document limit.
 
 `api_tokens/{tokenHash}`: `{"id": "<tokenHash>", "label": "laptop", "createdBy": "<uid>",
 "createdByEmail": "<email>", "createdAt": "…", "lastUsedAt": "…", "revokedAt": null}`.

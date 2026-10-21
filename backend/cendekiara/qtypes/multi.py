@@ -16,7 +16,7 @@ class MultiQuestion(Model):
     options: list[Option] = Field(default_factory=list)
 
 
-@qtype("multi")
+@qtype("multi", MultiQuestion)
 def grade(question: MultiQuestion, key: list[str], answer: list[str]) -> Marks:
     """1 mark when the chosen ids match the key exactly (order ignored)."""
     correct = set(answer) == set(key)

@@ -18,7 +18,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from cendekiara import __version__
 from cendekiara.core import config, plugins, registry
-from cendekiara.core.auth import Authenticator, Identity
+from cendekiara.core.auth import Authenticator, Identity, bearer_token
 from cendekiara.core.config import Settings
 from cendekiara.core.context import Context
 from cendekiara.core.errors import AppError
@@ -55,6 +55,8 @@ def create_app(store: Store | None = None, settings: Settings | None = None) -> 
     app.add_middleware(ApiOnlyCORSMiddleware, allow_origins=cfg.cors_origins())
     _add_error_handlers(app)
     _add_routes(app)
+    if cfg.jobs == "cloudtasks":
+        _add_internal_routes(app)
     return app
 
 
@@ -95,6 +97,27 @@ def _add_routes(app: FastAPI) -> None:
     async def get_command(name: str, request: Request) -> JSONResponse:
         """Run a readonly command; the query string is the arguments."""
         return await _run(app, name, request, read_body=False)
+
+
+def _add_internal_routes(app: FastAPI) -> None:
+    """The worker endpoint, mounted only when JOBS=cloudtasks (docs/10-security.md rule 12)."""
+
+    @app.post("/internal/jobs/run")
+    async def run_internal_job(request: Request) -> JSONResponse:
+        """Run one queued job, guarded by a Google OIDC token (worker only)."""
+        from cendekiara.core import jobs
+
+        settings = request.app.state.settings
+        token = bearer_token(request.headers.get("authorization"))
+        if not token:
+            raise AppError("invalid_token", "The worker token is missing")
+        jobs.verify_worker_token(token, settings)
+        body = await request.json()
+        job_id = body.get("jobId") if isinstance(body, dict) else None
+        if not isinstance(job_id, str) or not job_id:
+            raise AppError("invalid_args", "The jobId is missing")
+        jobs.run_job(job_id, request.app.state.store, settings, settings.site)
+        return _json({"ok": True}, cache=NO_STORE)
 
 
 async def _run(app: FastAPI, name: str, request: Request, *, read_body: bool) -> JSONResponse:

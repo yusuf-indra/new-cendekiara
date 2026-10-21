@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -196,3 +197,38 @@ def test_run_remote_never_builds_the_settings(monkeypatch: pytest.MonkeyPatch) -
     result = runner.invoke(app, ["run", "system.health", "--remote", "https://cendekiara.test"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["ok"] is True
+
+
+def test_jobs_run_executes_the_steps(tmp_path: Path) -> None:
+    job_file = tmp_path / "job.json"
+    job_file.write_text(json.dumps({"steps": [{"command": "system.health", "args": {}}]}))
+    result = runner.invoke(app, ["jobs", "run", str(job_file)])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    step = payload["steps"][0]
+    assert step["command"] == "system.health"
+    assert step["ok"] is True
+    assert step["result"]["ok"] is True
+    assert "seconds" in step
+    assert "error" not in step
+
+
+def test_jobs_run_reports_a_failed_step(tmp_path: Path) -> None:
+    job_file = tmp_path / "job.json"
+    job_file.write_text(json.dumps({"steps": [{"command": "nope.nope", "args": {}}]}))
+    result = runner.invoke(app, ["jobs", "run", str(job_file)])
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    step = payload["steps"][0]
+    assert step["ok"] is False
+    assert step["error"]["code"] == "unknown_command"
+
+
+def test_jobs_run_rejects_a_bad_file(tmp_path: Path) -> None:
+    job_file = tmp_path / "job.json"
+    job_file.write_text(json.dumps({"not_steps": []}))
+    result = runner.invoke(app, ["jobs", "run", str(job_file)])
+    assert result.exit_code == 1
+    assert json.loads(result.stderr)["error"]["code"] == "invalid_args"

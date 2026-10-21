@@ -9,10 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cendekiara.api.app import create_app
-from cendekiara.core import clock, plugins, registry
+from cendekiara.core import clock, jobs, plugins, registry
 from cendekiara.core.config import Settings
 from cendekiara.core.context import Actor, Context
-from cendekiara.core.store import MemoryStore
+from cendekiara.core.store import MemoryStore, Store
 
 FROZEN_NOW = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
 
@@ -35,6 +35,33 @@ def frozen_clock() -> Iterator[None]:
     clock.unfreeze()
 
 
+# The real dispatcher of the queue, kept so a test can ask for the real behaviour.
+_real_dispatch = jobs._dispatch
+
+
+def _skip_dispatch(job_id: str, store: Store, settings: Settings, site: str) -> None:
+    """Queue the job but do not start it: the test runs the job itself."""
+
+
+@pytest.fixture(autouse=True)
+def no_background_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A queued job never starts a background thread in a test.
+
+    In inline mode the queue runs the job in a thread. A test that runs the
+    job itself (`jobs.run_job`) would race with that thread: the thread takes
+    the job out of the queue and the test then reads the job document while it
+    still runs. The dispatch is replaced, so the job stays "queued" until the
+    test runs it.
+    """
+    monkeypatch.setattr(jobs, "_dispatch", _skip_dispatch)
+
+
+@pytest.fixture
+def real_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Restore the real dispatcher: the queue really dispatches the job."""
+    monkeypatch.setattr(jobs, "_dispatch", _real_dispatch)
+
+
 @pytest.fixture
 def mem() -> MemoryStore:
     return MemoryStore(SEED)
@@ -54,6 +81,20 @@ def admin_ctx(mem: MemoryStore) -> Context:
 @pytest.fixture
 def guest_ctx(mem: MemoryStore) -> Context:
     return Context(Actor(uid=None), mem)
+
+
+@pytest.fixture
+def jobs_settings() -> Settings:
+    """The dev settings used by the job tests (inline jobs, one admin email)."""
+    return Settings(
+        _env_file=None,
+        app_env="dev",
+        site="id",
+        store="memory",
+        auth_mode="dev",
+        jobs="inline",
+        admin_emails=["admin@example.com"],
+    )
 
 
 @pytest.fixture
