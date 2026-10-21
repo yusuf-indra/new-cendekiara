@@ -5,9 +5,20 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from cendekiara.core.config import Settings
+from cendekiara.core.config import RemoteConfig, Settings
 
-ENV_KEYS = ("APP_ENV", "SITE", "STORE", "AUTH_MODE", "JOBS", "ADMIN_EMAILS", "LOG_LEVEL")
+ENV_KEYS = (
+    "APP_ENV",
+    "SITE",
+    "STORE",
+    "AUTH_MODE",
+    "JOBS",
+    "ADMIN_EMAILS",
+    "LOG_LEVEL",
+    "SITE_URL",
+    "CAPACITOR_ORIGIN",
+    "CENDEKIARA_TOKEN",
+)
 
 
 @pytest.fixture
@@ -56,3 +67,41 @@ def test_prod_with_firestore_and_firebase_is_fine(clean_env: None) -> None:
 def test_unknown_log_level_is_refused(clean_env: None) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, log_level="chatty")
+
+
+def test_app_env_is_only_explicit_when_it_was_set(clean_env: None) -> None:
+    assert Settings(_env_file=None).app_env_explicit is False
+    assert Settings(_env_file=None, app_env="dev").app_env_explicit is True
+
+
+def test_app_env_from_the_environment_is_explicit(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "dev")
+    settings = Settings(_env_file=None)
+    assert settings.app_env == "dev"
+    assert settings.app_env_explicit is True
+
+
+def test_the_origins_of_the_api_are_empty_by_default(clean_env: None) -> None:
+    assert Settings(_env_file=None).cors_origins() == []
+
+
+def test_the_origins_of_the_api_are_the_site_and_the_app(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SITE_URL", "https://cendekiara.test")
+    monkeypatch.setenv("CAPACITOR_ORIGIN", "capacitor://localhost")
+    settings = Settings(_env_file=None)
+    assert settings.site_url == "https://cendekiara.test"
+    assert settings.capacitor_origin == "capacitor://localhost"
+    assert settings.cors_origins() == ["https://cendekiara.test", "capacitor://localhost"]
+
+
+def test_the_remote_config_only_needs_a_token(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("CENDEKIARA_TOKEN", "ck_a_token")
+    config = RemoteConfig(_env_file=None)
+    assert config.cendekiara_token == "ck_a_token"  # noqa: S105 - a test token
+
+
+def test_the_remote_config_has_no_token_by_default(clean_env: None) -> None:
+    assert RemoteConfig(_env_file=None).cendekiara_token is None
