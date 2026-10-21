@@ -57,6 +57,20 @@ def guest_ctx(mem: MemoryStore) -> Context:
 
 
 @pytest.fixture
+def jobs_settings() -> Settings:
+    """The dev settings used by the job tests (inline jobs, one admin email)."""
+    return Settings(
+        _env_file=None,
+        app_env="dev",
+        site="id",
+        store="memory",
+        auth_mode="dev",
+        jobs="inline",
+        admin_emails=["admin@example.com"],
+    )
+
+
+@pytest.fixture
 def api_settings() -> Settings:
     """The settings of the API tests: the dev profile, set explicitly."""
     return Settings(
