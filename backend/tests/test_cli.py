@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from cendekiara.cli import app, decode_arg_value
-from cendekiara.core import remote
+from cendekiara.core import config, remote
 
 runner = CliRunner()
 
@@ -176,6 +176,23 @@ def test_run_remote_needs_no_local_profile(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.setenv("STORE", "memory")
     monkeypatch.setenv("AUTH_MODE", "dev")
+    result = runner.invoke(app, ["run", "system.health", "--remote", "https://cendekiara.test"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["ok"] is True
+
+
+def test_run_remote_never_builds_the_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The remote CLI talks to a server: it must not read a local profile."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"ok": True})
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise AssertionError("the remote CLI must not build the settings")
+
+    _mock_client(monkeypatch, httpx.MockTransport(handler))
+    monkeypatch.setenv("CENDEKIARA_TOKEN", "ck_a_token")
+    monkeypatch.setattr(config, "Settings", boom)
     result = runner.invoke(app, ["run", "system.health", "--remote", "https://cendekiara.test"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["ok"] is True

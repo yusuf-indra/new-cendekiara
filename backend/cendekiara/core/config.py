@@ -100,4 +100,23 @@ class RemoteConfig(BaseSettings):
     cendekiara_token: str | None = None
 
 
-settings = Settings()
+_settings: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """The settings of this process: read once, from the environment."""
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
+
+
+def __getattr__(name: str) -> Settings:
+    """`settings` is built on first use, so importing this module never fails.
+
+    The remote CLI needs the token only: it must not build (or validate)
+    the settings of a profile it does not use.
+    """
+    if name == "settings":
+        return get_settings()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
