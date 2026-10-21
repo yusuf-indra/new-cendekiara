@@ -125,6 +125,13 @@ def execute(name: str, raw_args: dict[str, Any], ctx: Context) -> Model:
         args = info.cls.input_model.model_validate(raw_args)
     except ValueError as exc:
         raise AppError("invalid_args", str(exc), hint=f"See the schema of {name}") from exc
+    if info.queued:
+        # Long work: return a job id at once; the worker runs the command later.
+        from cendekiara.core import jobs
+
+        job_id = jobs.enqueue(name, raw_args, ctx)
+        ctx.log.info("command queued: %s -> %s (via %s)", name, job_id, ctx.via)
+        return jobs.JobQueuedOut(job_id=job_id)
     result = info.cls().run(args, ctx)
     ctx.log.info("command finished: %s (via %s)", name, ctx.via)
     return cast(Model, result)

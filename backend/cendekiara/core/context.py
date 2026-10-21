@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from cendekiara.core.errors import AppError
 
 if TYPE_CHECKING:
+    from cendekiara.core.config import Settings
     from cendekiara.core.store import Store
 
 Via = Literal["web", "app", "cli", "job", "command", "remote"]
@@ -42,10 +43,11 @@ class Context:
     via: Via = "web"
     job_id: str | None = None
     log: logging.Logger = field(default_factory=lambda: logging.getLogger("cendekiara.command"))
+    settings: Settings | None = None  # None means the process settings
 
     def run(self, name: str, args: dict[str, Any]) -> Any:
         """Run another command so it is validated and checked like any other."""
         from cendekiara.core import registry
 
-        child = Context(self.actor, self.store, self.site, "command", self.job_id, self.log)
+        child = Context(self.actor, self.store, self.site, "command", self.job_id, self.log, self.settings)
         return registry.execute(name, args, child)

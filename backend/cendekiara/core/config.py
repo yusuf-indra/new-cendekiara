@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     site_url: str = ""
     capacitor_origin: str = ""
     app_env_explicit: bool = False
+    worker_url: str = ""  # the /internal/jobs/run audience (Cloud Tasks OIDC)
+    tasks_service_account: str = ""  # the service account Cloud Tasks runs as
+    tasks_queue: str = ""  # full queue path: projects/…/locations/…/queues/…
 
     @field_validator("admin_emails", mode="before")
     @classmethod
