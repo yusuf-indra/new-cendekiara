@@ -1,0 +1,142 @@
+{
+  "tpa-k-0101": {
+    "id": "tpa-k-0101",
+    "exam": "tpa-bappenas",
+    "section": "kuantitatif",
+    "tags": ["deret", "deret-angka"],
+    "difficulty": 2,
+    "targetTimeSec": 45,
+    "status": "active",
+    "usage": {"exam": true, "practice": true, "study": true},
+    "sites": ["id"],
+    "stimulus": null,
+    "groups": [
+      {
+        "id": "g1",
+        "type": "choice",
+        "topic": "deret-angka",
+        "instructions": "Pilih bilangan yang melengkapi barisan berikut.",
+        "options": [
+          {"id": "A", "text": "24"},
+          {"id": "B", "text": "26"},
+          {"id": "C", "text": "28"},
+          {"id": "D", "text": "30"},
+          {"id": "E", "text": "32"}
+        ],
+        "questions": [
+          {"id": "q1", "prompt": "2, 5, 10, 17, ..."}
+        ]
+      }
+    ]
+  },
+  "tpa-v-0101": {
+    "id": "tpa-v-0101",
+    "exam": "tpa-bappenas",
+    "section": "verbal",
+    "tags": ["sinonim"],
+    "difficulty": 1,
+    "targetTimeSec": 30,
+    "status": "active",
+    "usage": {"exam": true, "practice": true, "study": true},
+    "sites": ["id"],
+    "stimulus": null,
+    "groups": [
+      {
+        "id": "g1",
+        "type": "choice",
+        "topic": "sinonim",
+        "instructions": "Pilih kata yang paling dekat maknanya dengan kata yang dicetak tebal.",
+        "options": [
+          {"id": "A", "text": "penutup"},
+          {"id": "B", "text": "pendahuluan"},
+          {"id": "C", "text": "kesimpulan"},
+          {"id": "D", "text": "ringkasan"},
+          {"id": "E", "text": "lampiran"}
+        ],
+        "questions": [
+          {"id": "q1", "prompt": "MUKADIMAH"}
+        ]
+      }
+    ]
+  },
+  "tpa-p-0101": {
+    "id": "tpa-p-0101",
+    "exam": "tpa-bappenas",
+    "section": "penalaran",
+    "tags": ["silogisme"],
+    "difficulty": 3,
+    "targetTimeSec": 50,
+    "status": "active",
+    "usage": {"exam": true, "practice": true, "study": false},
+    "sites": ["id"],
+    "stimulus": null,
+    "groups": [
+      {
+        "id": "g1",
+        "type": "choice",
+        "topic": "silogisme",
+        "instructions": "Pilih kesimpulan yang paling tepat.",
+        "options": [
+          {"id": "A", "text": "Semua kucing bernapas dengan paru-paru."},
+          {"id": "B", "text": "Semua mamalia adalah kucing."},
+          {"id": "C", "text": "Sebagian kucing bukan mamalia."},
+          {"id": "D", "text": "Sebagian mamalia tidak bernapas dengan paru-paru."},
+          {"id": "E", "text": "Tidak ada kesimpulan yang dapat ditarik."}
+        ],
+        "questions": [
+          {"id": "q1", "prompt": "Semua kucing adalah mamalia. Semua mamalia bernapas dengan paru-paru."}
+        ]
+      }
+    ]
+  },
+  "ielts-r-0101": {
+    "id": "ielts-r-0101",
+    "exam": "ielts",
+    "section": "reading",
+    "tags": ["public-library"],
+    "difficulty": 2,
+    "targetTimeSec": 90,
+    "status": "active",
+    "usage": {"exam": true, "practice": true, "study": false},
+    "sites": ["id", "global"],
+    "stimulus": {
+      "kind": "passage",
+      "title": "The Quiet Return of the Public Library",
+      "paragraphs": [
+        {"label": "A", "text": "Once seen as a silent place for borrowing books, the public library has quietly become a busy community hub."},
+        {"label": "B", "text": "Many libraries now host workshops, offer free internet access and lend tools and musical instruments alongside their shelves of novels."}
+      ]
+    },
+    "groups": [
+      {
+        "id": "g1",
+        "type": "choice",
+        "topic": null,
+        "instructions": "Choose the best answer for each question based on the passage.",
+        "options": null,
+        "questions": [
+          {
+            "id": "q1",
+            "prompt": "What is the main idea of the passage?",
+            "options": [
+              {"id": "A", "text": "Public libraries are closing down."},
+              {"id": "B", "text": "The public library has become a community hub."},
+              {"id": "C", "text": "People no longer borrow books."},
+              {"id": "D", "text": "Libraries only lend novels."}
+            ]
+          },
+          {
+            "id": "q2",
+            "prompt": "According to the passage, what can some libraries now lend?",
+            "options": [
+              {"id": "A", "text": "Only books"},
+              {"id": "B", "text": "Computers"},
+              {"id": "C", "text": "Tools and musical instruments"},
+              {"id": "D", "text": "Workshops"}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
