@@ -13,7 +13,9 @@
    writes. Scores, credits, payments, stats only through commands.
 3. **Login everywhere** except `public=True` readonly commands and the SEO
    pages. The uid comes from the verified Firebase ID token (or API token),
-   never from request args.
+   never from request args. Firebase ID tokens are verified with
+   `firebase_admin.auth.verify_id_token` (signature + expiry); a token that
+   fails verification answers `invalid_token`.
 4. **Ownership**: a command loading user data checks `doc.uid == actor uid`;
    otherwise `not_found` (404), never 403.
 5. **Admins** = emails in `ADMIN_EMAILS`, checked on the server for every
@@ -24,7 +26,9 @@
    SHA-256 hash in `api_tokens/`, admin only, revocable, `lastUsedAt` logged.
    The token is `ck_` + 32 url-safe bytes; a token acts as the admin who
    created it, runs with `via=remote` and may not run commands with
-   `allow_jobs=False` (`token.create`, `token.revoke`). Tokens are never
+   `allow_jobs=False` (`token.create`, `token.revoke`). The token stores
+   `createdByEmail` and re-checks that email on every use: it is refused as
+   soon as its owner's email is no longer in `ADMIN_EMAILS`. Tokens are never
    logged and never stored in clear.
 8. **Server-enforced time**: answers saved after `deadline + SUBMIT_GRACE_SEC`
    are ignored; the last autosave counts. Timings capped at 3 h per question.

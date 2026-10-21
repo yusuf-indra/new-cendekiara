@@ -16,6 +16,9 @@ Definition of done).
 - **Waiting on:** nothing; Claude starts on the next "lanjut".
 - **Open branches:** `feat/phase-1-api-auth` (Phase 1, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
+- **Follow-up:** `system.health` reads the global settings; move to
+  `ctx.settings` (a half-done attempt is in `git stash` on the VPS, may be
+  dropped).
 
 Already in the first commit (by Claude, do not redo): `core/registry.py`,
 `core/context.py`, `core/errors.py`, `core/models.py`, `core/store.py`
@@ -83,6 +86,10 @@ The owner only says "lanjut" / "cek status" / "merge". Claude runs the loop:
 Paid models cost money: back to the default for the next task. Note the
 model used in the run summary.
 
+MiniMax: the balance ran out on 2026-10-21 and the server does **not** fall
+back automatically on `insufficient balance`, so avoid `minimax/MiniMax-M3`
+until it is topped up.
+
 ## Infrastructure
 
 | Thing | Where |
@@ -94,6 +101,7 @@ model used in the run summary.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — API tokens re-check the creator's admin email on every use; Firebase tokens verified with verify_id_token.
 - 2026-10-21 — Phase 1: an API token acts as the admin who created it (uid of the creator, admin, `via=remote`) and may not run commands with `allow_jobs=False` (`token.create`, `token.revoke`); the token format is `ck_` + 32 url-safe bytes, stored as its SHA-256 hash only; the remote CLI builds no local profile at all (no store, no auth mode): it needs only `CENDEKIARA_TOKEN` and the URL.
 - 2026-10-21 — Phase 1: the API refuses to start when `APP_ENV` was not set explicitly, and the settings are built on first use, not on import, so the remote CLI never validates a profile it does not use.
 - 2026-10-21 — Phase 0: settings default to the dev profile; APP_ENV=prod requires STORE=firestore + AUTH_MODE=firebase; system.health is public but hides env/store from anonymous callers; ADMIN_EMAILS is comma-separated.
