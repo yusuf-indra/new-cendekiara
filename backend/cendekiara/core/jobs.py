@@ -182,6 +182,16 @@ def _invalid_args_message(name: str, exc: ValidationError) -> str:
 WorkerVerifier = Callable[[str, config.Settings], Mapping[str, Any]]
 
 
+def _worker_audience(settings: config.Settings) -> str:
+    """The audience of the worker OIDC token: the configured worker URL.
+
+    Cloud Tasks uses the task URL as the audience when none is given, and the
+    task URL is `WORKER_URL/internal/jobs/run`, while the worker only accepts
+    the audience `WORKER_URL`. So the task must set the audience explicitly.
+    """
+    return settings.worker_url
+
+
 def verify_worker_token(
     token: str,
     settings: config.Settings,
@@ -200,7 +210,7 @@ def verify_worker_token(
         raise
     except Exception as exc:
         raise AppError("invalid_token", "The worker token could not be verified") from exc
-    if claims.get("aud") != settings.worker_url:
+    if claims.get("aud") != _worker_audience(settings):
         raise AppError("invalid_token", "The worker token has the wrong audience")
     email = claims.get("email")
     if not isinstance(email, str) or not email or email != settings.tasks_service_account:
@@ -214,7 +224,7 @@ def _google_verify(token: str, settings: config.Settings) -> Mapping[str, Any]:
     id_token = cast(Any, importlib.import_module("google.oauth2.id_token"))
     return cast(
         Mapping[str, Any],
-        id_token.verify_token(token, request=requests.Request(), audience=settings.worker_url),
+        id_token.verify_token(token, request=requests.Request(), audience=_worker_audience(settings)),
     )
 
 
@@ -230,7 +240,10 @@ def _enqueue_cloud_task(job_id: str, settings: config.Settings) -> None:
             http_request=tasks.HttpRequest(
                 http_method=tasks.HttpMethod.POST,
                 url=path,
-                oidc_token=tasks.OidcToken(service_account_email=settings.tasks_service_account),
+                oidc_token=tasks.OidcToken(
+                    service_account_email=settings.tasks_service_account,
+                    audience=_worker_audience(settings),
+                ),
                 body=body,
             )
         ),
