@@ -118,8 +118,6 @@ def run_job(job_id: str, store: Store, settings: config.Settings, site: str) -> 
     in a command fails with `internal_error` (the traceback stays in the server
     log, never in the job document). A job is never left "running".
     """
-    from cendekiara.core import registry
-
     doc = store.get(COLLECTION, job_id)
     if doc is None:
         return
@@ -132,17 +130,20 @@ def run_job(job_id: str, store: Store, settings: config.Settings, site: str) -> 
     if job.status != "queued":
         return
     store.update(COLLECTION, job_id, {"status": "running", "startedAt": clock.now_iso()})
-    actor = Actor(
-        uid=job.actor.uid,
-        email=job.actor.email,
-        is_admin=settings.is_admin_email(job.actor.email),
+    ctx = Context(
+        Actor(
+            uid=job.actor.uid,
+            email=job.actor.email,
+            is_admin=settings.is_admin_email(job.actor.email),
+        ),
+        store,
+        site=site,
+        via="job",
+        job_id=job_id,
+        settings=settings,
     )
-    ctx = Context(actor, store, site=site, via="job", job_id=job_id, settings=settings)
     try:
-        info = registry.get(job.name)
-        registry.check_access(info, ctx)  # admin_only re-checked against the current email
-        args = info.cls.input_model.model_validate(job.args)
-        result = info.cls().run(args, ctx)
+        result = _run_command(job.name, job.args, ctx)
         store.update(
             COLLECTION,
             job_id,
@@ -156,6 +157,16 @@ def run_job(job_id: str, store: Store, settings: config.Settings, site: str) -> 
         # A bug in a command: the job fails, the traceback stays in the log.
         log.exception("job failed unexpectedly: %s (%s)", job_id, job.name)
         _fail_job(store, job_id, AppError("internal_error", "The job failed unexpectedly"))
+
+
+def _run_command(name: str, args: dict[str, Any], ctx: Context) -> Model:
+    """Check the access of the job actor, validate the arguments, run the command."""
+    from cendekiara.core import registry
+
+    info = registry.get(name)
+    registry.check_access(info, ctx)  # admin_only re-checked against the current email
+    validated = info.cls.input_model.model_validate(args)
+    return cast(Model, info.cls().run(validated, ctx))
 
 
 def _fail_job(store: Store, job_id: str, error: AppError) -> None:
