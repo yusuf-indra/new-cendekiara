@@ -60,6 +60,13 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
 
 `item_keys/{id}`: `{"answers": {"q1": ["C"]}, "explanations": {"q1": "…"}, "transcript": null, "aiCheck": {…}}`.
 
+`api_tokens/{tokenHash}`: `{"id": "<tokenHash>", "label": "laptop", "createdBy": "<uid>",
+"createdByEmail": "<email>", "createdAt": "…", "lastUsedAt": "…", "revokedAt": null}`.
+The document id is the SHA-256 hash of the token: the token itself (`ck_` + 32
+url-safe bytes) is shown once at creation and never stored. `createdByEmail` is
+re-checked on every use: the token is refused when that email is no longer an
+admin (docs/10-security.md).
+
 Question numbers are **not** stored on items: they are assigned when a
 package is assembled (`bank.assemble`), because one item can sit at
 different positions in different packages.

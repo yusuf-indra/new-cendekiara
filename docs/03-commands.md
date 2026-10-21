@@ -33,9 +33,11 @@ document, compare `uid` with `ctx.actor.require_uid()`, else `not_found`).
 | Worker | `POST /internal/jobs/run` (Cloud Tasks, OIDC) → `registry.execute` with the stored actor |
 
 Discovery: `GET /api/commands` and `cendekiara commands list --json` return
-`[{"name","summary","queued","adminOnly","allowJobs","readonly","public","inputSchema","outputSchema"}]`
-(only what the caller may run). The frontend's TypeScript types are
-generated from this list (`make schema`).
+`[{"name","summary","queued","adminOnly","allowJobs","readonly","public","inputSchema","outputSchema"}]`.
+The API returns only what the caller may run: the public commands for an
+anonymous caller, everything but the admin commands for a signed-in user, and
+everything for an admin. The frontend's TypeScript types are generated from
+this list (`make schema`).
 
 Job run output (`--json`): `{"id","ok","steps":[{"command","ok","result"|"error","seconds"}]}`,
 exit code 0/1 — same contract as Mirey, so the opencode-mcp job tool can be
@@ -45,8 +47,63 @@ generalised to this app.
 
 Raise `AppError(code, message, hint=None)`. Codes and HTTP statuses live in
 `core/errors.py` (`invalid_args` 422, `not_found` 404, `login_required` 401,
-`admin_only` 404, `conflict` 409, `deadline_passed` 409, `quota_exceeded` 402).
+`invalid_token` 401, `admin_only` 404, `method_not_allowed` 405,
+`conflict` 409, `deadline_passed` 409, `quota_exceeded` 402).
 API body: `{"error": {"code", "message", "hint"}}`.
+
+The CLI prints the same body on stderr and leaves with exit code 1. The
+remote CLI adds one code of its own: `remote_error` (the server could not be
+reached).
+
+## The API (`api/app.py`)
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/commands` | The commands the caller may run, with their schemas |
+| `POST /api/commands/{name}` | Run a command; the body is the arguments of the command |
+| `GET /api/commands/{name}` | Run a readonly command; the query string is the arguments |
+
+- The body of a POST is a JSON object with the arguments of the command
+  (`{"lang": "en"}`); an empty body means "no arguments". The query string of
+  a GET uses the same names (`?examId=tpa-bappenas`). An unknown argument is
+  `invalid_args` (422).
+- `GET` is only for readonly commands; anything else is `method_not_allowed`
+  (405). An unknown command is `unknown_command` (404). Admin commands look
+  absent to everyone else (`admin_only`, 404).
+- Arguments are validated with the input model of the command, so the same
+  rules apply on every entry point.
+- The caller is only known from the `Authorization` header: a Firebase ID
+  token, a dev token (`dev:<uid>`, only when `APP_ENV=dev`) or an admin API
+  token (`ck_…`). A missing or malformed header is anonymous. A token that
+  cannot be verified is `invalid_token` (401).
+- Cache headers: a public readonly command with `cache_seconds` is
+  `Cache-Control: public, max-age=…`; everything else is `no-store` with
+  `Vary: Authorization`. `system.health` is never cached.
+- CORS is only on `/api`, and only for `SITE_URL` and `CAPACITOR_ORIGIN`.
+- The API refuses to start when `APP_ENV` was not set explicitly, and never
+  runs with `AUTH_MODE=dev` outside `APP_ENV=dev`.
+
+## API tokens (`token.*`)
+
+Admin tokens for Claude and scripts, so no cloud credentials live on the
+VPS. `token.create` gives a token of `ck_` + 32 url-safe bytes, shown **once**
+and stored as its SHA-256 hash in `api_tokens/{hash}` (label, creator uid,
+`createdAt`, `lastUsedAt`, `revokedAt`). The token itself is never logged
+and never stored. `token.revoke` takes the id of the token or its label; an
+unknown token is `not_found`.
+
+A token acts as the admin who created it: it is an admin, it runs commands
+with `via=remote` and it may not run commands with `allow_jobs=False`
+(`token.create` and `token.revoke` themselves). A revoked or unknown token is
+`invalid_token`.
+
+```bash
+cendekiara run <name> --arg key=value --remote https://cendekiara.com
+```
+
+The token comes from `CENDEKIARA_TOKEN`; without it the CLI stops with exit
+code 1. The remote mode needs no store, no auth mode and no cloud
+credentials: only the token and the URL.
 
 ## Domains (planned; add rows as commands are built)
 

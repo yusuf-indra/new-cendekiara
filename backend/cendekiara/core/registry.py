@@ -15,6 +15,9 @@ from cendekiara.core.models import Model
 In = TypeVar("In", bound=Model)
 Out = TypeVar("Out", bound=Model)
 
+# Where a call comes from, for the messages of the rules below.
+_SOURCE = {"job": "a job", "remote": "the remote CLI"}
+
 
 class Command[In: Model, Out: Model]:
     """Subclass, implement `run`, register with @command. Nothing else."""
@@ -110,8 +113,8 @@ def check_access(info: CommandInfo, ctx: Context) -> None:
         raise AppError("login_required", "Please sign in")
     if info.admin_only and not ctx.actor.is_admin:
         raise AppError("admin_only", f"No command named {info.name!r}")
-    if ctx.via == "job" and not info.allow_jobs:
-        raise AppError("invalid_args", f"{info.name} cannot run from a job")
+    if not info.allow_jobs and ctx.via in ("job", "remote"):
+        raise AppError("invalid_args", f"{info.name} cannot run from {_SOURCE[ctx.via]}")
 
 
 def execute(name: str, raw_args: dict[str, Any], ctx: Context) -> Model:

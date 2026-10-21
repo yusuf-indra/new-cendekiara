@@ -13,7 +13,9 @@
    writes. Scores, credits, payments, stats only through commands.
 3. **Login everywhere** except `public=True` readonly commands and the SEO
    pages. The uid comes from the verified Firebase ID token (or API token),
-   never from request args.
+   never from request args. Firebase ID tokens are verified with
+   `firebase_admin.auth.verify_id_token` (signature + expiry); a token that
+   fails verification answers `invalid_token`.
 4. **Ownership**: a command loading user data checks `doc.uid == actor uid`;
    otherwise `not_found` (404), never 403.
 5. **Admins** = emails in `ADMIN_EMAILS`, checked on the server for every
@@ -22,6 +24,12 @@
    `allow_jobs=False`.
 7. **API tokens** (for Claude/scripts): random 32 bytes, shown once, stored as
    SHA-256 hash in `api_tokens/`, admin only, revocable, `lastUsedAt` logged.
+   The token is `ck_` + 32 url-safe bytes; a token acts as the admin who
+   created it, runs with `via=remote` and may not run commands with
+   `allow_jobs=False` (`token.create`, `token.revoke`). The token stores
+   `createdByEmail` and re-checks that email on every use: it is refused as
+   soon as its owner's email is no longer in `ADMIN_EMAILS`. Tokens are never
+   logged and never stored in clear.
 8. **Server-enforced time**: answers saved after `deadline + SUBMIT_GRACE_SEC`
    are ignored; the last autosave counts. Timings capped at 3 h per question.
 9. **No secrets in the repo.** Secrets in Secret Manager / env vars; deploy
@@ -30,10 +38,14 @@
     KaTeX with `trust: false`. Never `dangerouslySetInnerHTML` except the
     KaTeX output component.
 11. **Dev shortcuts** (`AUTH_MODE=dev`, `AI_PROVIDER=fake`, `STORE=memory`)
-    refuse to start unless `APP_ENV=dev`.
+    refuse to start unless `APP_ENV=dev`. The API also refuses to start when
+    `APP_ENV` was not set explicitly: a forgotten profile is a production
+    accident. The remote CLI (`cendekiara run --remote`) builds no profile at
+    all: it needs only a token and a URL.
 12. **Internal endpoints** (`/internal/*`, worker) require a Cloud Tasks OIDC
     token for the service account; never routed by Firebase Hosting.
-13. **CORS**: only the site URL and the Capacitor origin, only for `/api/*`.
+13. **CORS**: only the site URL (`SITE_URL`) and the Capacitor origin
+    (`CAPACITOR_ORIGIN`), only for `/api/*`. Nothing else gets CORS headers.
 14. **Abuse**: Turnstile on sign-up (Phase 10), rate limits on public
     commands and `study.check`.
 

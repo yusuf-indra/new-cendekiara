@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
+from fastapi.testclient import TestClient
 
+from cendekiara.api.app import create_app
 from cendekiara.core import clock, registry
+from cendekiara.core.config import Settings
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.store import MemoryStore
-
-# Tests always run the dev profile, whatever the shell has.
-os.environ["APP_ENV"] = "dev"
-os.environ["SITE"] = "id"
-os.environ["STORE"] = "memory"
-os.environ["AUTH_MODE"] = "dev"
-os.environ["JOBS"] = "inline"
 
 FROZEN_NOW = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
 
@@ -52,9 +47,31 @@ def ctx(mem: MemoryStore) -> Context:
 
 @pytest.fixture
 def admin_ctx(mem: MemoryStore) -> Context:
-    return Context(Actor(uid="u-admin", is_admin=True), mem)
+    return Context(Actor(uid="u-admin", email="admin@example.com", is_admin=True), mem)
 
 
 @pytest.fixture
 def guest_ctx(mem: MemoryStore) -> Context:
     return Context(Actor(uid=None), mem)
+
+
+@pytest.fixture
+def api_settings() -> Settings:
+    """The settings of the API tests: the dev profile, set explicitly."""
+    return Settings(
+        _env_file=None,
+        app_env="dev",
+        site="id",
+        store="memory",
+        auth_mode="dev",
+        jobs="inline",
+        admin_emails=["admin@example.com"],
+        site_url="https://cendekiara.test",
+        capacitor_origin="capacitor://localhost",
+    )
+
+
+@pytest.fixture
+def api_client(mem: MemoryStore, api_settings: Settings) -> TestClient:
+    """A client of the API, with the seeded memory store."""
+    return TestClient(create_app(store=mem, settings=api_settings))
