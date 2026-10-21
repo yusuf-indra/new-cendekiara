@@ -6,15 +6,11 @@ Definition of done).
 
 ## Now
 
-- **Next step:** Phase 2 (Firestore + plugins): `core/firestore_store.py`
-  (Admin SDK behind `Store`), the seed loader for the memory store, the
-  exam plugin loader (`ielts`, `tpa-bappenas`, `cpns-skd`, `pkn-stan`,
-  `toefl`, `gmat`), the scoring plugins (`scale_200_800`, `ielts_band`),
-  the question types (`choice`, `select`, `multi`, `text`) and the
-  `catalog.*` commands. Adding a dummy exam in the tests must need no
-  edit in the core.
+- **Next step:** Phase 3 (question bank): `item.validate/create/update/retire`,
+  `item.import` (queued, dry run), `bank.assemble`, `bank.export`,
+  `core/jobs.py` + `job.get` + `cendekiara jobs run`.
 - **Waiting on:** nothing; Claude starts on the next "lanjut".
-- **Open branches:** `feat/phase-1-api-auth` (Phase 1, in review).
+- **Open branches:** `feat/phase-2-firestore-plugins` (Phase 2, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
 - **Follow-up:** `system.health` reads the global settings; move to
   `ctx.settings` (a half-done attempt is in `git stash` on the VPS, may be
@@ -32,13 +28,21 @@ Phase 1 added: `api/app.py` (FastAPI: discovery, `POST`/`GET
 --remote`), the commands `user.me`, `user.update_profile`, `token.create`,
 `token.revoke`.
 
+Phase 2 added: `core/firestore_store.py` (Admin SDK behind `Store`, lazy,
+injectable client), `seed/` (one JSON per collection) + `load_seed()` feeding
+`build_store("memory")`, `core/plugins.py` (exam/scoring/qtype discovery),
+the exams `ielts`, `tpa-bappenas`, `cpns-skd`, `pkn-stan`, `toefl`, `gmat`,
+the scoring methods `scale_200_800` and `ielts_band`, the question types
+`choice`, `select`, `multi`, `text`, and the commands `catalog.categories`
+and `catalog.exam`.
+
 ## Phases
 
 | Phase | Status | Branch / PR | Notes |
 | --- | --- | --- | --- |
 | 0. Skeleton | merged | PR #1 | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
-| 1. API + auth | in review | `feat/phase-1-api-auth` | FastAPI app, `core/auth.py` (dev + Firebase + API tokens), `user.me`, `user.update_profile`, `token.create/revoke`, `run --remote` |
-| 2. Firestore + plugins | not started | — | |
+| 1. API + auth | merged | PR #2 | FastAPI app, `core/auth.py` (dev + Firebase + API tokens), `user.me`, `user.update_profile`, `token.create/revoke`, `run --remote` |
+| 2. Firestore + plugins | in review | `feat/phase-2-firestore-plugins` | Firestore store, seed loader, plugin discovery, 6 exams, 2 scoring methods, 4 question types, `catalog.categories`/`catalog.exam` |
 | 3. Question bank | not started | — | |
 | 4. Exam engine | not started | — | |
 | 5. App shell (React SPA) | not started | — | |
@@ -101,6 +105,8 @@ until it is topped up.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — Phase 2: exams are discovered as subpackages of `cendekiara.exams` (folder in snake_case, `EXAM.id` is the dashed slug); scoring methods and question types register with `@scoring` / `@qtype`; adding a plugin never edits core code. `catalog.tests` is deferred to Phase 3. Coming-soon exams use placeholder section names (cpns-skd → twk/tiu/tkp) and forward-looking scoring ids where the method is not built yet.
+- 2026-10-21 — Phase 2: exam categories are two slugs for now, `english` and `seleksi-kedinasan`; the per-site slugs of docs/09 (`bahasa-inggris`, `english-tests`, `graduate-admissions`) are reconciled when the public site (Phase 6) maps them.
 - 2026-10-21 — API tokens re-check the creator's admin email on every use; Firebase tokens verified with verify_id_token.
 - 2026-10-21 — Phase 1: an API token acts as the admin who created it (uid of the creator, admin, `via=remote`) and may not run commands with `allow_jobs=False` (`token.create`, `token.revoke`); the token format is `ck_` + 32 url-safe bytes, stored as its SHA-256 hash only; the remote CLI builds no local profile at all (no store, no auth mode): it needs only `CENDEKIARA_TOKEN` and the URL.
 - 2026-10-21 — Phase 1: the API refuses to start when `APP_ENV` was not set explicitly, and the settings are built on first use, not on import, so the remote CLI never validates a profile it does not use.

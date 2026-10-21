@@ -3,6 +3,25 @@
 Four extension points. Each is a folder or file that the core discovers;
 adding one never edits core code.
 
+## 0. Discovery and models
+
+`cendekiara.core.plugins` discovers all three backend extension points by
+import (`load_all()`):
+
+- **Exams** are subpackages of `cendekiara.exams` (folder in snake_case, e.g.
+  `tpa_bappenas/`) each defining `EXAM = ExamDef(id="tpa-bappenas", ...)` —
+  the `id` is the dashed URL slug. Accessors: `register_exam`, `get_exam`
+  (unknown id → `not_found`), `all_exams`.
+- **Scoring methods** are modules in `cendekiara.scoring/` registered with
+  `@scoring("scale_200_800")`.
+- **Question types** are modules in `cendekiara.qtypes/` registered with
+  `@qtype("choice")`.
+
+The plugin interface models also live in `cendekiara.core.plugins`: `ExamDef`,
+`RawResult` / `SectionResult`, `TestSpec` / `SectionSpec` (a minimal package
+shape the scoring methods read; the full `TestDef` is Phase 4), `Score`,
+`Marks` and `Option`.
+
 ## 1. Exam plugin — `backend/cendekiara/exams/<exam-id>/__init__.py`
 
 ```python
