@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import threading
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -15,7 +16,7 @@ from cendekiara.core.context import Actor, Context
 from cendekiara.core.errors import AppError
 from cendekiara.core.jobs import Job, JobActor
 from cendekiara.core.models import Model
-from cendekiara.core.store import MemoryStore, save
+from cendekiara.core.store import MemoryStore, Store, save
 
 
 def _admin_ctx(mem: MemoryStore, settings: Settings) -> Context:
@@ -172,6 +173,30 @@ def test_enqueue_inline_dispatches_a_thread(
     monkeypatch.setattr(jobs, "_run_inline", lambda jid, store, s, site: seen.update(jid=jid))
     job_id = jobs.enqueue("bank.export", {}, _admin_ctx(mem, jobs_settings))
     assert seen["jid"] == job_id
+
+
+def test_inline_dispatch_runs_the_job_in_a_background_thread(
+    mem: MemoryStore, jobs_settings: Settings, real_dispatch: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """In inline mode the queue really runs the job in a thread; wait for it."""
+    finished = threading.Event()
+    ran_in: list[threading.Thread] = []
+    real_run_job = jobs.run_job
+
+    def _run_and_signal(job_id: str, store: Store, settings: Settings, site: str) -> None:
+        ran_in.append(threading.current_thread())
+        try:
+            real_run_job(job_id, store, settings, site)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(jobs, "run_job", _run_and_signal)
+    job_id = jobs.enqueue("bank.export", {}, _admin_ctx(mem, jobs_settings))
+    assert finished.wait(timeout=10), "the inline thread did not run the job"
+    doc = mem.get("jobs", job_id)
+    assert doc is not None
+    assert doc["status"] == "done"
+    assert ran_in and ran_in[0] is not threading.main_thread()  # a background thread
 
 
 def test_enqueue_cloudtasks_enqueues_a_task(
