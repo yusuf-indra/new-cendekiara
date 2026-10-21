@@ -23,7 +23,7 @@ def test_bank_export_returns_items_and_keys(mem: MemoryStore, jobs_settings: Set
     mem.set("item_keys", "tpa-test-1", make_key())
     ctx = Context(Actor(uid="u-admin", email="admin@example.com", is_admin=True), mem, settings=jobs_settings)
     out = registry.execute("bank.export", {}, ctx)
-    jobs.run_job(out.job_id, mem, jobs_settings, "id")
+    jobs.run_job(out.job_id, mem, jobs_settings, "id")  # the test runs the job itself
     result = mem.get("jobs", out.job_id)["result"]  # type: ignore[index]
     assert result["count"] == 1
     assert result["items"][0]["id"] == "tpa-test-1"
@@ -35,7 +35,7 @@ def test_bank_export_can_filter_by_exam(mem: MemoryStore, jobs_settings: Setting
     mem.set("items", "ielts-1", make_item(item_id="ielts-1", exam="ielts", section="reading"))
     ctx = Context(Actor(uid="u-admin", email="admin@example.com", is_admin=True), mem, settings=jobs_settings)
     out = registry.execute("bank.export", {"exam": "ielts"}, ctx)
-    jobs.run_job(out.job_id, mem, jobs_settings, "id")
+    jobs.run_job(out.job_id, mem, jobs_settings, "id")  # the test runs the job itself
     result = mem.get("jobs", out.job_id)["result"]  # type: ignore[index]
     assert result["count"] == 1
     assert result["items"][0]["id"] == "ielts-1"

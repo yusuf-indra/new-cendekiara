@@ -15,7 +15,11 @@ KEY_FIELDS = {"answers", "keys", "explanations", "transcript", "ai_check", "aiCh
 
 
 def _import(mem: MemoryStore, args: dict, settings: Settings) -> dict:
-    """Run item.import through the queue and the worker, then return the job result."""
+    """Run item.import through the queue and the worker, then return the job result.
+
+    The `no_background_dispatch` fixture keeps the queue from starting the
+    inline thread, so this test runs the job itself.
+    """
     ctx = Context(Actor(uid="u-admin", email="admin@example.com", is_admin=True), mem, settings=settings)
     out = registry.execute("item.import", args, ctx)
     jobs.run_job(out.job_id, mem, settings, "id")

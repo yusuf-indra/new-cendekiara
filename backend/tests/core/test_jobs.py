@@ -37,7 +37,8 @@ def _queued_job(name: str, args: dict, email: str = "admin@example.com") -> Job:
 def test_enqueue_stores_the_identity_and_dispatches(
     mem: MemoryStore, jobs_settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(jobs, "_dispatch", lambda *a, **k: None)
+    dispatched: list[str] = []
+    monkeypatch.setattr(jobs, "_dispatch", lambda job_id, *a, **k: dispatched.append(job_id))
     job_id = jobs.enqueue("bank.export", {}, _admin_ctx(mem, jobs_settings))
     doc = mem.get("jobs", job_id)
     assert doc is not None
@@ -45,6 +46,7 @@ def test_enqueue_stores_the_identity_and_dispatches(
     assert doc["actor"] == {"uid": "u-admin", "email": "admin@example.com"}
     assert doc["createdBy"] == "u-admin"
     assert "isAdmin" not in doc  # never store an admin flag
+    assert dispatched == [job_id]  # the queue dispatched the job
 
 
 def test_run_job_stores_the_result(mem: MemoryStore, jobs_settings: Settings) -> None:
@@ -164,7 +166,7 @@ def test_run_job_fails_a_job_that_raises(
 
 
 def test_enqueue_inline_dispatches_a_thread(
-    mem: MemoryStore, jobs_settings: Settings, monkeypatch: pytest.MonkeyPatch
+    mem: MemoryStore, jobs_settings: Settings, real_dispatch: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     seen: dict[str, str] = {}
     monkeypatch.setattr(jobs, "_run_inline", lambda jid, store, s, site: seen.update(jid=jid))
@@ -172,7 +174,9 @@ def test_enqueue_inline_dispatches_a_thread(
     assert seen["jid"] == job_id
 
 
-def test_enqueue_cloudtasks_enqueues_a_task(mem: MemoryStore, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_enqueue_cloudtasks_enqueues_a_task(
+    mem: MemoryStore, real_dispatch: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     settings = Settings(
         _env_file=None,
         app_env="dev",
