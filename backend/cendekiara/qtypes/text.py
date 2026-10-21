@@ -29,7 +29,7 @@ class TextQuestion(Model):
     max_words: int | None = None
 
 
-@qtype("text")
+@qtype("text", TextQuestion)
 def grade(question: TextQuestion, key: list[str], answer: str) -> Marks:
     """1 mark when the normalised answer matches any accepted variant."""
     expected = {normalize_text(variant) for variant in key}

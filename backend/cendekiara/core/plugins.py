@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -95,9 +96,18 @@ class Option(Model):
 ScoringFn = Callable[[RawResult, TestSpec], Score]
 QTypeGrade = Callable[..., Marks]
 
+
+@dataclass(frozen=True)
+class QType:
+    """A question type: its grading function and the model of one question."""
+
+    grade: QTypeGrade
+    model: type[Model]
+
+
 _EXAMS: dict[str, ExamDef] = {}
 _SCORING: dict[str, ScoringFn] = {}
-_QTYPES: dict[str, QTypeGrade] = {}
+_QTYPES: dict[str, QType] = {}
 _LOADED_EXAMS: set[str] = set()
 
 
@@ -121,13 +131,17 @@ def scoring(name: str) -> Callable[[ScoringFn], ScoringFn]:
     return wrap
 
 
-def qtype(name: str) -> Callable[[QTypeGrade], QTypeGrade]:
-    """Register a question-type grading function under its id, e.g. ``@qtype("choice")``."""
+def qtype(name: str, model: type[Model]) -> Callable[[QTypeGrade], QTypeGrade]:
+    """Register a question type under its id, e.g. ``@qtype("choice", ChoiceQuestion)``.
+
+    `model` is the pydantic model of one question of this type, used by the
+    single validation path (`core/items.py`) to check each question.
+    """
 
     def wrap(fn: QTypeGrade) -> QTypeGrade:
         if name in _QTYPES:
             raise RuntimeError(f"duplicate qtype plugin: {name}")
-        _QTYPES[name] = fn
+        _QTYPES[name] = QType(grade=fn, model=model)
         return fn
 
     return wrap
@@ -194,7 +208,15 @@ def all_scoring() -> list[str]:
 def get_qtype(name: str) -> QTypeGrade:
     """One question-type grading function, or AppError('not_found') for an unknown id."""
     try:
-        return _QTYPES[name]
+        return _QTYPES[name].grade
+    except KeyError:
+        raise AppError("not_found", f"qtype plugin {name!r} not found") from None
+
+
+def get_qtype_model(name: str) -> type[Model]:
+    """The question model of a question type, or AppError('not_found')."""
+    try:
+        return _QTYPES[name].model
     except KeyError:
         raise AppError("not_found", f"qtype plugin {name!r} not found") from None
 
