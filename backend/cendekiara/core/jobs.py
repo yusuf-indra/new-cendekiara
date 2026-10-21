@@ -6,6 +6,10 @@ flag); `run_job` recomputes admin from the settings at run time, so a demoted
 admin's queued job fails with `admin_only` (docs/10-security.md rule 5, the
 Phase 3 decision A). Locally (`JOBS=inline`) a job runs in a background
 thread; in production (`JOBS=cloudtasks`) it is enqueued to Cloud Tasks.
+
+A job always ends: `done` or `failed`. A bad argument fails with
+`invalid_args`, a bug in a command with `internal_error` (the traceback stays
+in the server log, never in the job document).
 """
 
 from __future__ import annotations
@@ -17,6 +21,8 @@ import threading
 import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, Literal, cast
+
+from pydantic import ValidationError
 
 from cendekiara.core import clock, config
 from cendekiara.core import store as store_mod
@@ -107,13 +113,22 @@ def run_job(job_id: str, store: Store, settings: config.Settings, site: str) -> 
 
     Admin is recomputed from `settings.is_admin_email(actor.email)` here, at
     run time — a job enqueued by someone who is no longer an admin fails.
+
+    Every failure ends the job: a bad argument fails with `invalid_args`, a bug
+    in a command fails with `internal_error` (the traceback stays in the server
+    log, never in the job document). A job is never left "running".
     """
     from cendekiara.core import registry
 
     doc = store.get(COLLECTION, job_id)
     if doc is None:
         return
-    job = Job.from_doc(doc)
+    try:
+        job = Job.from_doc(doc)
+    except ValidationError:
+        log.exception("job document is invalid: %s", job_id)
+        _fail_job(store, job_id, AppError("internal_error", "The job failed unexpectedly"))
+        return
     if job.status != "queued":
         return
     store.update(COLLECTION, job_id, {"status": "running", "startedAt": clock.now_iso()})
@@ -134,12 +149,34 @@ def run_job(job_id: str, store: Store, settings: config.Settings, site: str) -> 
             {"status": "done", "result": result.to_doc(), "finishedAt": clock.now_iso()},
         )
     except AppError as exc:
-        store.update(
-            COLLECTION,
-            job_id,
-            {"status": "failed", "error": exc.to_dict(), "finishedAt": clock.now_iso()},
-        )
-        log.info("job failed: %s (%s)", job_id, exc.code)
+        _fail_job(store, job_id, exc)
+    except ValidationError as exc:
+        _fail_job(store, job_id, AppError("invalid_args", _invalid_args_message(job.name, exc)))
+    except Exception:
+        # A bug in a command: the job fails, the traceback stays in the log.
+        log.exception("job failed unexpectedly: %s (%s)", job_id, job.name)
+        _fail_job(store, job_id, AppError("internal_error", "The job failed unexpectedly"))
+
+
+def _fail_job(store: Store, job_id: str, error: AppError) -> None:
+    """Store the error of a job; the job is never left "running"."""
+    store.update(
+        COLLECTION,
+        job_id,
+        {"status": "failed", "error": error.to_dict(), "finishedAt": clock.now_iso()},
+    )
+    log.info("job failed: %s (%s)", job_id, error.code)
+
+
+def _invalid_args_message(name: str, exc: ValidationError) -> str:
+    """Why the stored arguments are invalid: the fields and the kinds of error.
+
+    Never the values: the arguments of a command may hold answer keys.
+    """
+    reasons = sorted(
+        {f"{'.'.join(str(part) for part in err['loc']) or 'args'}: {err['type']}" for err in exc.errors()}
+    )
+    return f"The arguments of {name} are invalid ({'; '.join(reasons)})"
 
 
 WorkerVerifier = Callable[[str, config.Settings], Mapping[str, Any]]

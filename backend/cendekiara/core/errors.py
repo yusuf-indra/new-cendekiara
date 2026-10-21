@@ -15,6 +15,7 @@ HTTP_STATUS: dict[str, int] = {
     "deadline_passed": 409,
     "quota_exceeded": 402,
     "server_error": 500,
+    "internal_error": 500,  # a bug in a command: the details stay in the server log
 }
 
 
