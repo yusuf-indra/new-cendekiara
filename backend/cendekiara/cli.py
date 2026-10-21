@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 import typer
 from pydantic import ValidationError
 
-from cendekiara.core import registry, remote
+from cendekiara.core import plugins, registry, remote
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.errors import AppError
 from cendekiara.core.logging import setup_logging
@@ -87,6 +87,7 @@ def list_commands(
     """List every command with its flags and schemas."""
     _load_settings()
     registry.load_all()
+    plugins.load_all()
     payload = [info.schema() for info in registry.all_commands()]
     if json_output:
         typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -116,6 +117,7 @@ def run_command(
     settings = _load_settings()
     setup_logging(settings.log_level if verbose else "WARNING")
     registry.load_all()
+    plugins.load_all()
     try:
         args = _parse_args(arg or [])
         payload = _execute(name, args, settings)

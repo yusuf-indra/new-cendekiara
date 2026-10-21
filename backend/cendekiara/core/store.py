@@ -7,11 +7,11 @@ for local dev (`STORE=memory`) and every test.
 from __future__ import annotations
 
 import copy
-import importlib
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from cendekiara.core.errors import AppError
 from cendekiara.core.models import Model
+from cendekiara.seed import load_seed
 
 Doc = dict[str, Any]
 
@@ -70,14 +70,10 @@ class MemoryStore:
 def build_store(name: str) -> Store:
     """Build the store named in the settings: memory locally, Firestore in production."""
     if name == "memory":
-        return MemoryStore()
+        return MemoryStore(load_seed())
     if name == "firestore":
-        try:
-            module = importlib.import_module("cendekiara.core.firestore_store")
-        except ModuleNotFoundError as exc:
-            raise AppError(
-                "invalid_args",
-                "STORE=firestore is not available yet (Phase 2): core/firestore_store.py is missing",
-            ) from exc
-        return cast(Store, module.FirestoreStore())
+        # Imported here: FirestoreStore is lazy and never touches the network at import.
+        from cendekiara.core.firestore_store import FirestoreStore
+
+        return FirestoreStore()
     raise AppError("invalid_args", f"Unknown store {name!r}")

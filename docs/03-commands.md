@@ -105,13 +105,28 @@ The token comes from `CENDEKIARA_TOKEN`; without it the CLI stops with exit
 code 1. The remote mode needs no store, no auth mode and no cloud
 credentials: only the token and the URL.
 
+## Catalog commands (`catalog.*`)
+
+The public, cached, readonly reads the SEO pages and the app use to list what
+is available. They expose i18n keys, never brand display strings, and never
+answer keys (docs/10-security.md rule 1).
+
+- `catalog.categories` → the categories, each with its exams (`id`, `nameKey`,
+  `status`). Categories are derived from the exam plugins.
+- `catalog.exam` (`examId`) → one exam's definition: `category`, the scoring
+  and layout plugin ids, `contentLang`, `features`, `status`, `sites`, and
+  `sections` (`id`, `nameKey`, topic slugs). Unknown `examId` → `not_found`.
+
+`catalog.tests` (the packages of an exam) is deferred to Phase 3, together
+with the `tests/` documents it reads.
+
 ## Domains (planned; add rows as commands are built)
 
 | Domain | Examples |
 | --- | --- |
 | `system` | `system.health` |
 | `user` | `user.me`, `user.set_language`, `user.update_profile` |
-| `catalog` | `catalog.categories`, `catalog.exam`, `catalog.tests` (public, cached) |
+| `catalog` | `catalog.categories`, `catalog.exam` (Phase 2); `catalog.tests` (Phase 3) — public, cached |
 | `attempt` | `attempt.start`, `attempt.save`, `attempt.submit`, `attempt.pause`, `attempt.resume`, `attempt.get`, `attempt.history` |
 | `practice` | `practice.build` (from bank: section, topics, difficulty, count, timer) |
 | `study` | `study.next`, `study.check` (server-graded) |

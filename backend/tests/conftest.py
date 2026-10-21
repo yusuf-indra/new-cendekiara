@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cendekiara.api.app import create_app
-from cendekiara.core import clock, registry
+from cendekiara.core import clock, plugins, registry
 from cendekiara.core.config import Settings
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.store import MemoryStore
@@ -24,6 +24,7 @@ SEED = {
 }
 
 registry.load_all()
+plugins.load_all()
 
 
 @pytest.fixture(autouse=True)
