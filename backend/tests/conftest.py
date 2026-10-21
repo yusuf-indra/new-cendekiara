@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
+from datetime import UTC, datetime
+
 import pytest
 
-from cendekiara.core import registry
+from cendekiara.core import clock, registry
 from cendekiara.core.context import Actor, Context
 from cendekiara.core.store import MemoryStore
+
+# Tests always run the dev profile, whatever the shell has.
+os.environ["APP_ENV"] = "dev"
+os.environ["SITE"] = "id"
+os.environ["STORE"] = "memory"
+os.environ["AUTH_MODE"] = "dev"
+os.environ["JOBS"] = "inline"
+
+FROZEN_NOW = datetime(2026, 10, 21, 12, 0, tzinfo=UTC)
 
 SEED = {
     "users": {
@@ -16,6 +29,14 @@ SEED = {
 }
 
 registry.load_all()
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock() -> Iterator[None]:
+    """Freeze the clock so no test depends on the wall clock."""
+    clock.freeze(FROZEN_NOW)
+    yield
+    clock.unfreeze()
 
 
 @pytest.fixture

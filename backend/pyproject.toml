@@ -1,6 +1,6 @@
 [project]
 name = "cendekiara"
-version = "0.1.0"
+dynamic = ["version"]
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115", "uvicorn[standard]>=0.30", "pydantic>=2.8", "pydantic-settings>=2.4",
@@ -13,6 +13,9 @@ gcp = ["firebase-admin>=6.5", "google-cloud-firestore>=2.16", "google-cloud-task
 
 [project.scripts]
 cendekiara = "cendekiara.cli:app"
+
+[tool.setuptools.dynamic]
+version = { attr = "cendekiara.__version__" }
 
 [build-system]
 requires = ["setuptools>=69"]
