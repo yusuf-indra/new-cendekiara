@@ -17,7 +17,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from cendekiara import __version__
-from cendekiara.core import config, registry
+from cendekiara.core import config, plugins, registry
 from cendekiara.core.auth import Authenticator, Identity
 from cendekiara.core.config import Settings
 from cendekiara.core.context import Context
@@ -46,6 +46,7 @@ def create_app(store: Store | None = None, settings: Settings | None = None) -> 
     cfg = settings or config.settings
     _refuse_unsafe_profile(cfg)
     registry.load_all()
+    plugins.load_all()
 
     app = FastAPI(title="Cendekiara API", version=__version__, docs_url=None, redoc_url=None)
     app.state.settings = cfg
