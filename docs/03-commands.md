@@ -43,6 +43,24 @@ Job run output (`--json`): `{"id","ok","steps":[{"command","ok","result"|"error"
 exit code 0/1 — same contract as Mirey, so the opencode-mcp job tool can be
 generalised to this app.
 
+## Queued commands and the worker
+
+A command marked `queued` returns `{"jobId"}` at once; `registry.execute`
+validates the arguments and checks access **before** enqueueing, then stores
+the job in `jobs/{jobId}` and dispatches it. The worker runs the command later
+and stores its result (or error) in the job; the caller polls `job.get`.
+
+- The job stores the caller as `{uid, email}` only. Admin is **re-computed**
+  from `ADMIN_EMAILS` at run time, so a job enqueued by someone who is no
+  longer an admin fails with `admin_only`.
+- `JOBS=inline` runs the job in a background thread; `JOBS=cloudtasks`
+  enqueues a Cloud Tasks task to `POST /internal/jobs/run` (OIDC, worker only).
+- `POST /internal/jobs/run` is mounted only when `JOBS=cloudtasks`; it accepts
+  a Google OIDC token whose audience is `WORKER_URL` and whose email is
+  `TASKS_SERVICE_ACCOUNT` (settings). Otherwise it is 404 (inline mode) or 401.
+- The worker runs the command directly (not through `registry.execute`, which
+  would enqueue again) after re-checking access with the recomputed actor.
+
 ## Errors
 
 Raise `AppError(code, message, hint=None)`. Codes and HTTP statuses live in
@@ -130,9 +148,9 @@ with the `tests/` documents it reads.
 | `attempt` | `attempt.start`, `attempt.save`, `attempt.submit`, `attempt.pause`, `attempt.resume`, `attempt.get`, `attempt.history` |
 | `practice` | `practice.build` (from bank: section, topics, difficulty, count, timer) |
 | `study` | `study.next`, `study.check` (server-graded) |
-| `item` | `item.create`, `item.update`, `item.import` (queued), `item.validate`, `item.retire`, `item.public_get` (public), `item.mark`, `item.report` |
-| `family` · `test` · `bank` | `family.*`, `test.create/update/publish`, `bank.assemble`, `bank.export` |
+| `item` | `item.create`, `item.update`, `item.import` (queued), `item.validate`, `item.retire` — Phase 3; later `item.public_get` (public), `item.mark`, `item.report` |
+| `family` · `test` · `bank` | `bank.assemble`, `bank.export` — Phase 3; later `family.*`, `test.create/update/publish` |
 | `ai` | `ai.generate_items` (queued), `ai.validate_items` (queued) |
 | `stats` · `leaderboard` | `stats.items` (admin), `stats.card` (public), `leaderboard.get` |
 | `article` | `article.create/update/publish`, `article.public_get` |
-| `job` · `token` | `job.get`, `token.create/revoke` (admin, `allow_jobs=False`) |
+| `job` · `token` | `job.get` — Phase 3; `token.create/revoke` (admin, `allow_jobs=False`) |

@@ -49,6 +49,25 @@
 14. **Abuse**: Turnstile on sign-up (Phase 10), rate limits on public
     commands and `study.check`.
 
+## Job security (Phase 3)
+
+- **A. Job actor** (`jobs/{id}.actor`) stores `{uid, email}` (and `createdBy`)
+  only — never an admin flag. The worker recomputes `is_admin` from
+  `ADMIN_EMAILS` at run time; a job enqueued by someone who is no longer an
+  admin fails with `admin_only`.
+- **B. `job.get`** reveals a job only to its creator or a current admin;
+  anyone else gets `not_found` (existence is never revealed). Because
+  `bank.export` results contain answer keys, this is what keeps a student
+  from reading another user's export.
+- **C. `bank.assemble`** is `admin_only` (a preview). The assembly logic lives
+  in `cendekiara.core.assemble.assemble_test` (Phase 4 `attempt.start` calls it
+  directly); its output never contains keys, explanations, transcripts or
+  `aiCheck`. No command outside `item.*` and `bank.export` reads `item_keys/`.
+- **D. `POST /internal/jobs/run`** is mounted only when `JOBS=cloudtasks`, and
+  requires a Google OIDC token whose audience is the configured `WORKER_URL`
+  and whose email is the configured `TASKS_SERVICE_ACCOUNT`; otherwise 401
+  (and 404 in `JOBS=inline`).
+
 ## Legal limits (mandatory)
 
 - Do not use the "IELTS" logo/brand as a product name. "IELTS-style" is fine.

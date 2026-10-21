@@ -6,11 +6,11 @@ Definition of done).
 
 ## Now
 
-- **Next step:** Phase 3 (question bank): `item.validate/create/update/retire`,
-  `item.import` (queued, dry run), `bank.assemble`, `bank.export`,
-  `core/jobs.py` + `job.get` + `cendekiara jobs run`.
+- **Next step:** Phase 4 (exam engine): `attempt.start/save/submit/get/history`,
+  `attempt.pause/resume`, `practice.build`, `study.next/check`, deadlines,
+  timings, `wrongPenalty`, per-section results.
 - **Waiting on:** nothing; Claude starts on the next "lanjut".
-- **Open branches:** `feat/phase-2-firestore-plugins` (Phase 2, in review).
+- **Open branches:** `feat/phase-3-question-bank` (Phase 3, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
 - **Follow-up:** `system.health` reads the global settings; move to
   `ctx.settings` (a half-done attempt is in `git stash` on the VPS, may be
@@ -36,14 +36,24 @@ the scoring methods `scale_200_800` and `ielts_band`, the question types
 `choice`, `select`, `multi`, `text`, and the commands `catalog.categories`
 and `catalog.exam`.
 
+Phase 3 added: `core/items.py` (item/key/family/test models + the single
+validation path `validate_item`), `core/assemble.py` (`assemble_test`, the
+function Phase 4 `attempt.start` calls), `core/jobs.py` (the job document,
+inline-thread and Cloud Tasks dispatch, the worker `run_job`, the OIDC
+`verify_worker_token`), `seed/items.json` + `item_keys.json` + `tests.json`
+(original sample questions), the commands `item.validate/create/update/retire`,
+`item.import` (queued, dry run), `bank.assemble`, `bank.export` (queued),
+`job.get`, `catalog.tests`, the worker endpoint `/internal/jobs/run`, and the
+CLI `cendekiara jobs run`.
+
 ## Phases
 
 | Phase | Status | Branch / PR | Notes |
 | --- | --- | --- | --- |
 | 0. Skeleton | merged | PR #1 | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
 | 1. API + auth | merged | PR #2 | FastAPI app, `core/auth.py` (dev + Firebase + API tokens), `user.me`, `user.update_profile`, `token.create/revoke`, `run --remote` |
-| 2. Firestore + plugins | in review | `feat/phase-2-firestore-plugins` | Firestore store, seed loader, plugin discovery, 6 exams, 2 scoring methods, 4 question types, `catalog.categories`/`catalog.exam` |
-| 3. Question bank | not started | — | |
+| 2. Firestore + plugins | merged | PR #3 | Firestore store, seed loader, plugin discovery, 6 exams, 2 scoring methods, 4 question types, `catalog.categories`/`catalog.exam` |
+| 3. Question bank | in review | `feat/phase-3-question-bank` | item/key/family/test models + validation, `item.validate/create/update/retire`, `item.import` (queued, dry run), `bank.assemble`/`bank.export`, jobs (`core/jobs.py`, `job.get`, `jobs run`), `catalog.tests` |
 | 4. Exam engine | not started | — | |
 | 5. App shell (React SPA) | not started | — | |
 | 6. Public site (SEO) | not started | — | |
@@ -105,6 +115,18 @@ until it is topped up.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — Phase 3 (question bank): `item.import` runs in the worker as a
+  dry run by default; a non-dry-run saves every valid item (upsert) and
+  reports the invalid ones without failing. `bank.export` stores its
+  result (items + keys) in the job `result`, so a large bank is bounded by
+  Firestore's 1 MB document limit. `item.retire` retires a single item and
+  keeps `allow_jobs=True` (bulk retire stays a destructive Phase 7 command).
+  `item.update` is a full replace; the key is optional and, when given,
+  replaces the stored key. `Stimulus` is a discriminated union on `kind`
+  (`passage` | `audio` | `image`). Security decisions A–D (job actor
+  re-checks admin at run time, `job.get` ownership, `bank.assemble` is an
+  admin-only preview over `core/assemble.py`, the `/internal/jobs/run` OIDC
+  guard) are recorded in `docs/10-security.md`.
 - 2026-10-21 — Phase 2: exams are discovered as subpackages of `cendekiara.exams` (folder in snake_case, `EXAM.id` is the dashed slug); scoring methods and question types register with `@scoring` / `@qtype`; adding a plugin never edits core code. `catalog.tests` is deferred to Phase 3. Coming-soon exams use placeholder section names (cpns-skd → twk/tiu/tkp) and forward-looking scoring ids where the method is not built yet.
 - 2026-10-21 — Phase 2: exam categories are two slugs for now, `english` and `seleksi-kedinasan`; the per-site slugs of docs/09 (`bahasa-inggris`, `english-tests`, `graduate-admissions`) are reconciled when the public site (Phase 6) maps them.
 - 2026-10-21 — API tokens re-check the creator's admin email on every use; Firebase tokens verified with verify_id_token.

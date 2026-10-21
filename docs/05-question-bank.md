@@ -18,7 +18,13 @@ says which modes may show the item.
 
 All three end in `item.validate` (pydantic models of the exam plugin and
 question-type plugins, taxonomy check, LaTeX only if the exam has `math`,
-options/answers consistent, family exists).
+options/answers consistent, family exists). The single implementation is
+`cendekiara.core.items.validate_item`, shared by `item.validate`, `item.create`,
+`item.update` and `item.import`.
+
+Assembly (`bank.assemble`, and Phase 4 `attempt.start`) is the single function
+`cendekiara.core.assemble.assemble_test`, which numbers questions and returns
+item content only — never answers, explanations, transcripts or `aiCheck`.
 
 1. **Form** in the admin (single multiple-choice question with live preview
    incl. LaTeX; other types edited as JSON with a schema-aware editor).
