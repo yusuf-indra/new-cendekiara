@@ -201,7 +201,11 @@ class Authenticator:
         return Identity(self._verifier.verify(token))
 
     def _api_token_actor(self, token: str) -> Actor:
-        """The admin who created the token; unknown or revoked tokens are refused."""
+        """The admin who created the token; unknown or revoked tokens are refused.
+
+        The owner is re-checked on every use: a token loses its admin rights
+        as soon as its owner is no longer an admin (docs/10-security.md rule 7).
+        """
         token_id = hash_token(token)
         doc = self._store.get("api_tokens", token_id)
         if doc is None:
@@ -211,8 +215,11 @@ class Authenticator:
         created_by = doc.get("createdBy")
         if not isinstance(created_by, str) or not created_by:
             raise AppError("invalid_token", "This API token is not valid")
+        email = doc.get("createdByEmail")
+        if not isinstance(email, str) or not self._settings.is_admin_email(email):
+            raise AppError("invalid_token", "The owner of this API token is no longer an admin")
         self._touch(token_id, doc)
-        return Actor(uid=created_by, is_admin=True)
+        return Actor(uid=created_by, email=email, is_admin=True)
 
     def _touch(self, token_id: str, doc: Mapping[str, Any]) -> None:
         """Remember when the token was last used (throttled, so requests stay cheap)."""

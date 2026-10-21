@@ -8,8 +8,9 @@ from dataclasses import replace
 import pytest
 
 from cendekiara.core import registry
-from cendekiara.core.context import Context
+from cendekiara.core.context import Actor, Context
 from cendekiara.core.errors import AppError
+from cendekiara.core.store import MemoryStore
 
 
 def test_an_admin_creates_a_token(admin_ctx: Context) -> None:
@@ -27,6 +28,7 @@ def test_the_token_is_stored_as_its_hash_only(admin_ctx: Context) -> None:
     assert len(rows) == 1
     doc = rows[0]
     assert doc["createdBy"] == "u-admin"
+    assert doc["createdByEmail"] == "admin@example.com"
     assert doc["label"] == "laptop"
     assert token not in str(doc)
     expected_id = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -36,7 +38,16 @@ def test_the_token_is_stored_as_its_hash_only(admin_ctx: Context) -> None:
 def test_the_token_document_has_only_the_hash_fields(admin_ctx: Context) -> None:
     registry.execute("token.create", {"label": "laptop"}, admin_ctx)
     doc = admin_ctx.store.list("api_tokens")[0]
-    assert set(doc) == {"id", "label", "createdBy", "createdAt"}
+    assert set(doc) == {"id", "label", "createdBy", "createdByEmail", "createdAt"}
+
+
+def test_an_admin_without_an_email_may_not_create_a_token(mem: MemoryStore) -> None:
+    """Without an owner email the token could never be re-checked."""
+    ctx = Context(Actor(uid="u-admin", is_admin=True), mem)
+    with pytest.raises(AppError) as err:
+        registry.execute("token.create", {"label": "laptop"}, ctx)
+    assert err.value.code == "invalid_args"
+    assert mem.list("api_tokens") == []
 
 
 def test_a_user_may_not_create_a_token(ctx: Context) -> None:

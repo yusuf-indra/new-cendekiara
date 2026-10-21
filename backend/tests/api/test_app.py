@@ -8,12 +8,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from cendekiara.api.app import cache_control, create_app
+from cendekiara.core.auth import hash_token
 from cendekiara.core.config import Settings
 from cendekiara.core.registry import get
 from cendekiara.core.store import MemoryStore
 
 STUDENT = {"Authorization": "Bearer dev:u-siti"}
-ADMIN = {"Authorization": "Bearer dev:admin"}
+# An admin with an email: an API token stores it and is re-checked on every use.
+ADMIN = {"Authorization": "Bearer dev:admin@example.com"}
 
 
 def test_discovery_is_public_and_lists_the_public_commands(api_client: TestClient) -> None:
@@ -137,12 +139,31 @@ def test_the_error_body_has_the_documented_shape(api_client: TestClient) -> None
 
 
 def test_an_api_token_acts_as_the_admin_who_created_it(api_client: TestClient, mem: MemoryStore) -> None:
-    mem.set("users", "admin", {"uid": "admin", "email": "admin@example.com"})
+    mem.set("users", "admin@example.com", {"uid": "admin@example.com", "email": "admin@example.com"})
     created = api_client.post("/api/commands/token.create", headers=ADMIN, json={"label": "laptop"})
     token = created.json()["token"]
     response = api_client.get("/api/commands/user.me", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
-    assert response.json()["uid"] == "admin"
+    assert response.json()["uid"] == "admin@example.com"
+
+
+def test_a_token_of_an_admin_who_is_no_longer_an_admin_is_refused(
+    api_client: TestClient, mem: MemoryStore
+) -> None:
+    token = "ck_" + "a" * 43
+    mem.set(
+        "api_tokens",
+        hash_token(token),
+        {
+            "id": hash_token(token),
+            "label": "laptop",
+            "createdBy": "u-admin",
+            "createdByEmail": "gone@example.com",
+        },
+    )
+    response = api_client.get("/api/commands/user.me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "invalid_token"
 
 
 def test_an_api_token_may_not_create_a_token(api_client: TestClient) -> None:

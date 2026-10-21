@@ -47,7 +47,7 @@ def ctx(mem: MemoryStore) -> Context:
 
 @pytest.fixture
 def admin_ctx(mem: MemoryStore) -> Context:
-    return Context(Actor(uid="u-admin", is_admin=True), mem)
+    return Context(Actor(uid="u-admin", email="admin@example.com", is_admin=True), mem)
 
 
 @pytest.fixture

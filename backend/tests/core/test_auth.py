@@ -98,18 +98,55 @@ def test_an_api_token_acts_as_the_admin_who_created_it() -> None:
     store = MemoryStore()
     token = generate_token()
     token_id = hash_token(token)
-    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    store.set(
+        "api_tokens",
+        token_id,
+        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "createdByEmail": "boss@example.com"},
+    )
     identity = Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
     assert identity.actor.uid == "u-admin"
+    assert identity.actor.email == "boss@example.com"
     assert identity.actor.is_admin is True
     assert identity.via == "remote"
+
+
+def test_an_api_token_stops_working_when_its_owner_is_no_longer_an_admin() -> None:
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set(
+        "api_tokens",
+        token_id,
+        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "createdByEmail": "boss@example.com"},
+    )
+    without_boss = Settings(_env_file=None, app_env="dev", auth_mode="dev", admin_emails=[])
+    with pytest.raises(AppError) as err:
+        Authenticator(without_boss, store).authenticate(f"Bearer {token}")
+    assert err.value.code == "invalid_token"
+    assert err.value.message == "The owner of this API token is no longer an admin"
+
+
+def test_an_api_token_without_an_owner_email_is_refused() -> None:
+    """Tokens of an older version have no owner email: they are refused."""
+    store = MemoryStore()
+    token = generate_token()
+    token_id = hash_token(token)
+    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    with pytest.raises(AppError) as err:
+        Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
+    assert err.value.code == "invalid_token"
+    assert err.value.message == "The owner of this API token is no longer an admin"
 
 
 def test_an_api_token_is_remembered_as_used() -> None:
     store = MemoryStore()
     token = generate_token()
     token_id = hash_token(token)
-    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    store.set(
+        "api_tokens",
+        token_id,
+        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "createdByEmail": "boss@example.com"},
+    )
     Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
     assert store.get("api_tokens", token_id) is not None
     assert store.get("api_tokens", token_id)["lastUsedAt"]  # type: ignore[index]
@@ -122,7 +159,13 @@ def test_a_revoked_api_token_is_refused() -> None:
     store.set(
         "api_tokens",
         token_id,
-        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "revokedAt": "2026-10-21T12:00:00+00:00"},
+        {
+            "id": token_id,
+            "label": "laptop",
+            "createdBy": "u-admin",
+            "createdByEmail": "boss@example.com",
+            "revokedAt": "2026-10-21T12:00:00+00:00",
+        },
     )
     with pytest.raises(AppError) as err:
         Authenticator(SETTINGS, store).authenticate(f"Bearer {token}")
@@ -139,7 +182,11 @@ def test_a_token_is_stored_as_its_hash_only() -> None:
     store = MemoryStore()
     token = generate_token()
     token_id = hash_token(token)
-    store.set("api_tokens", token_id, {"id": token_id, "label": "laptop", "createdBy": "u-admin"})
+    store.set(
+        "api_tokens",
+        token_id,
+        {"id": token_id, "label": "laptop", "createdBy": "u-admin", "createdByEmail": "boss@example.com"},
+    )
     assert token_id == hashlib.sha256(token.encode("utf-8")).hexdigest()
     assert token not in str(store.list("api_tokens"))
 

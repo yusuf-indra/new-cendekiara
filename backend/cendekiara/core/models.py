@@ -51,6 +51,8 @@ class ApiToken(Model):
     id: str
     label: str
     created_by: str
+    # The email of the owner: it is re-checked on every use of the token.
+    created_by_email: str | None = None
     created_at: str
     last_used_at: str | None = None
     revoked_at: str | None = None
