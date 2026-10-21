@@ -28,6 +28,14 @@ TOKEN_PREFIX = "ck_"  # noqa: S105 - a prefix, not a secret
 TOKEN_ENTROPY_BYTES = 32
 LAST_USED_THROTTLE_SEC = 300
 
+# The firebase-admin errors that mean "this ID token is not valid".
+FIREBASE_ERROR_NAMES = (
+    "InvalidIdTokenError",
+    "ExpiredIdTokenError",
+    "RevokedIdTokenError",
+    "CertificateFetchError",
+)
+
 
 def generate_token() -> str:
     """A fresh API token: 'ck_' + 32 url-safe bytes."""
@@ -100,17 +108,53 @@ class FirebaseTokenVerifier:
 
 
 def decode_firebase_token(token: str) -> Mapping[str, Any]:
-    """Decode an ID token with firebase-admin (imported lazily, so it stays optional)."""
+    """Verify an ID token with firebase-admin (imported lazily, so it stays optional).
+
+    firebase-admin checks the signature and the expiry; its errors mean the
+    token is not valid, never that the server is broken.
+    """
+    firebase_auth = _import_firebase_auth()
+    _ensure_firebase_app()
+    errors = _firebase_errors(firebase_auth)
     try:
-        firebase_admin = cast(Any, importlib.import_module("firebase_admin"))
-    except ModuleNotFoundError as exc:
+        decoded = firebase_auth.verify_id_token(token)
+    except errors as exc:
+        # The class name only: the message of the SDK may hold the token.
+        log.warning("firebase refused an ID token: %s", type(exc).__name__)
+        raise AppError("invalid_token", "The ID token could not be verified") from exc
+    return {"uid": decoded.get("uid"), "email": decoded.get("email")}
+
+
+def _import_firebase_auth() -> Any:
+    """The firebase_admin.auth module; firebase-admin stays an optional extra."""
+    try:
+        return importlib.import_module("firebase_admin.auth")
+    except ImportError as exc:
         raise RuntimeError("AUTH_MODE=firebase needs firebase-admin: install the 'gcp' extra") from exc
+
+
+def _ensure_firebase_app() -> None:
+    """The default app holds the public keys; it is created once, on first use."""
+    firebase_admin = cast(Any, importlib.import_module("firebase_admin"))
     try:
         firebase_admin.get_app()
     except ValueError:
         firebase_admin.initialize_app()
-    decoded: Mapping[str, Any] = firebase_admin.auth.decode_id_token(token)
-    return {"uid": decoded.get("uid"), "email": decoded.get("email")}
+
+
+def _firebase_errors(module: Any) -> tuple[type[BaseException], ...]:
+    """The firebase-admin errors that mean 'this token is not valid'.
+
+    The classes are read from the imported module, so firebase-admin stays an
+    optional dependency (the SDK may name them differently one day).
+    """
+    classes: list[type[BaseException]] = []
+    for name in FIREBASE_ERROR_NAMES:
+        candidate = getattr(module, name, None)
+        if isinstance(candidate, type) and issubclass(candidate, BaseException):
+            classes.append(candidate)
+    classes.append(ValueError)
+    return tuple(classes)
 
 
 def default_verifier(settings: Settings) -> TokenVerifier:

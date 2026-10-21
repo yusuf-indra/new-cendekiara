@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import sys
+import types
+from typing import Any
 
 import pytest
 
@@ -11,6 +14,7 @@ from cendekiara.core.auth import (
     DevTokenVerifier,
     FirebaseTokenVerifier,
     bearer_token,
+    decode_firebase_token,
     generate_token,
     hash_token,
 )
@@ -20,6 +24,27 @@ from cendekiara.core.errors import AppError
 from cendekiara.core.store import MemoryStore
 
 SETTINGS = Settings(_env_file=None, app_env="dev", auth_mode="dev", admin_emails=["boss@example.com"])
+
+
+class FakeInvalidIdTokenError(Exception):
+    """Stands in for firebase_admin.auth.InvalidIdTokenError."""
+
+
+class FakeExpiredIdTokenError(FakeInvalidIdTokenError):
+    """Stands in for firebase_admin.auth.ExpiredIdTokenError."""
+
+
+def _fake_firebase(monkeypatch: pytest.MonkeyPatch, verify_id_token: Any) -> None:
+    """A fake firebase_admin and firebase_admin.auth, so no SDK is needed."""
+    app = types.ModuleType("firebase_admin")
+    app.get_app = lambda: None  # type: ignore[attr-defined]
+    app.initialize_app = lambda: None  # type: ignore[attr-defined]
+    auth = types.ModuleType("firebase_admin.auth")
+    auth.verify_id_token = verify_id_token  # type: ignore[attr-defined]
+    auth.InvalidIdTokenError = FakeInvalidIdTokenError  # type: ignore[attr-defined]
+    auth.ExpiredIdTokenError = FakeExpiredIdTokenError  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "firebase_admin", app)
+    monkeypatch.setitem(sys.modules, "firebase_admin.auth", auth)
 
 
 def test_a_dev_token_gives_the_uid() -> None:
@@ -153,3 +178,57 @@ def test_the_firebase_verifier_refuses_a_token_without_a_uid() -> None:
 
 def test_the_actor_of_the_system_is_an_admin() -> None:
     assert Actor.system().is_admin is True
+
+
+def test_the_firebase_verifier_calls_verify_id_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+
+    def verify_id_token(token: str) -> dict[str, str]:
+        seen.append(token)
+        return {"uid": "u-siti", "email": "siti@example.com"}
+
+    _fake_firebase(monkeypatch, verify_id_token)
+    actor = FirebaseTokenVerifier(SETTINGS).verify("an-id-token")
+    assert seen == ["an-id-token"]
+    assert actor.uid == "u-siti"
+    assert actor.email == "siti@example.com"
+    assert actor.is_admin is False
+
+
+def test_a_refused_firebase_token_is_an_invalid_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def verify_id_token(token: str) -> dict[str, str]:
+        raise FakeInvalidIdTokenError("the token is broken")
+
+    _fake_firebase(monkeypatch, verify_id_token)
+    with pytest.raises(AppError) as err:
+        decode_firebase_token("a-secret-id-token")
+    assert err.value.code == "invalid_token"
+    assert "a-secret-id-token" not in err.value.message
+
+
+def test_an_expired_firebase_token_is_an_invalid_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def verify_id_token(token: str) -> dict[str, str]:
+        raise FakeExpiredIdTokenError("expired")
+
+    _fake_firebase(monkeypatch, verify_id_token)
+    with pytest.raises(AppError) as err:
+        decode_firebase_token("an-id-token")
+    assert err.value.code == "invalid_token"
+
+
+def test_a_broken_firebase_token_is_an_invalid_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def verify_id_token(token: str) -> dict[str, str]:
+        raise ValueError("illegal token")
+
+    _fake_firebase(monkeypatch, verify_id_token)
+    with pytest.raises(AppError) as err:
+        decode_firebase_token("an-id-token")
+    assert err.value.code == "invalid_token"
+
+
+def test_firebase_needs_the_gcp_extra(monkeypatch: pytest.MonkeyPatch) -> None:
+    """firebase-admin stays optional: without it the profile is broken, not the token."""
+    monkeypatch.setitem(sys.modules, "firebase_admin", None)
+    monkeypatch.delitem(sys.modules, "firebase_admin.auth", raising=False)
+    with pytest.raises(RuntimeError, match="gcp"):
+        decode_firebase_token("an-id-token")
