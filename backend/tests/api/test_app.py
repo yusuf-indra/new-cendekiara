@@ -111,6 +111,12 @@ def test_get_of_an_unknown_command_is_not_found(api_client: TestClient) -> None:
     assert response.json()["error"]["code"] == "unknown_command"
 
 
+def test_get_with_an_unknown_argument_is_invalid_args(api_client: TestClient) -> None:
+    response = api_client.get("/api/commands/system.health?x=1")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_args"
+
+
 def test_an_admin_command_looks_absent_to_a_user(api_client: TestClient) -> None:
     response = api_client.post("/api/commands/token.create", headers=STUDENT, json={"label": "laptop"})
     assert response.status_code == 404
