@@ -60,13 +60,18 @@ and stores its result (or error) in the job; the caller polls `job.get`.
   `TASKS_SERVICE_ACCOUNT` (settings). Otherwise it is 404 (inline mode) or 401.
 - The worker runs the command directly (not through `registry.execute`, which
   would enqueue again) after re-checking access with the recomputed actor.
+- A job always ends: `done` or `failed`. A bad stored argument fails with
+  `invalid_args`, a bug in a command with `internal_error` (the traceback
+  stays in the server log, the job document holds no traceback and no
+  argument values). A job is never left `running`.
 
 ## Errors
 
 Raise `AppError(code, message, hint=None)`. Codes and HTTP statuses live in
 `core/errors.py` (`invalid_args` 422, `not_found` 404, `login_required` 401,
 `invalid_token` 401, `admin_only` 404, `method_not_allowed` 405,
-`conflict` 409, `deadline_passed` 409, `quota_exceeded` 402).
+`conflict` 409, `deadline_passed` 409, `quota_exceeded` 402,
+`internal_error` 500).
 API body: `{"error": {"code", "message", "hint"}}`.
 
 The CLI prints the same body on stderr and leaves with exit code 1. The

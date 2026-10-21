@@ -15,6 +15,9 @@ Definition of done).
 - **Follow-up:** `system.health` reads the global settings; move to
   `ctx.settings` (a half-done attempt is in `git stash` on the VPS, may be
   dropped).
+- **Follow-up:** Jobs: Cloud Tasks may deliver a job twice; make the
+  queued→running switch atomic (Firestore transaction / precondition) before
+  production (Phase 8).
 
 Already in the first commit (by Claude, do not redo): `core/registry.py`,
 `core/context.py`, `core/errors.py`, `core/models.py`, `core/store.py`
@@ -100,9 +103,10 @@ The owner only says "lanjut" / "cek status" / "merge". Claude runs the loop:
 Paid models cost money: back to the default for the next task. Note the
 model used in the run summary.
 
-MiniMax: the balance ran out on 2026-10-21 and the server does **not** fall
-back automatically on `insufficient balance`, so avoid `minimax/MiniMax-M3`
-until it is topped up.
+Balances: MiniMax and DeepSeek ran out on 2026-10-21 and the server does
+**not** fall back automatically on `insufficient balance` (only on quota), so
+avoid `minimax/MiniMax-M3` and `deepseek/deepseek-v4-pro` until they are
+topped up. The `opencode/*` free models still work.
 
 ## Infrastructure
 
@@ -114,6 +118,15 @@ until it is topped up.
 | Production (later) | Firebase Hosting + Cloud Run + Firestore, domain `cendekiara.com` (Cloudflare) |
 
 ## Decisions log (newest first)
+
+- 2026-10-21 — Jobs: unexpected errors fail the job with `internal_error`;
+  Cloud Tasks OIDC audience is `WORKER_URL`. A job always ends (`done` or
+  `failed`): a bad stored argument fails with `invalid_args`, a bug in a
+  command with `internal_error` — the traceback stays in the server log, the
+  job document holds neither a traceback nor the argument values. The Cloud
+  Tasks task sets the OIDC audience explicitly, or Cloud Tasks would use the
+  task URL (`WORKER_URL/internal/jobs/run`) and every worker call would be
+  rejected.
 
 - 2026-10-21 — Phase 3 (question bank): `item.import` runs in the worker as a
   dry run by default; a non-dry-run saves every valid item (upsert) and
