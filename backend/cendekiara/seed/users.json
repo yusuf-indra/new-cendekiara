@@ -1,0 +1,12 @@
+{
+  "u-siti": {
+    "uid": "u-siti",
+    "email": "siti@example.com",
+    "lang": "id"
+  },
+  "u-admin": {
+    "uid": "u-admin",
+    "email": "admin@example.com",
+    "lang": "en"
+  }
+}
