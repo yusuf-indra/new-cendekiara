@@ -6,13 +6,15 @@ Definition of done).
 
 ## Now
 
-- **Next step:** Phase 1 (API + auth): FastAPI app (`api/app.py`),
-  `core/auth.py` (Firebase ID token, `AUTH_MODE=dev` refused unless
-  `APP_ENV=dev`), admin by `ADMIN_EMAILS`, admin API tokens
-  (`token.create/revoke`, hashed) and `cendekiara run --remote`. Phase 1
-  must also refuse to serve when `APP_ENV` was not set explicitly.
+- **Next step:** Phase 2 (Firestore + plugins): `core/firestore_store.py`
+  (Admin SDK behind `Store`), the seed loader for the memory store, the
+  exam plugin loader (`ielts`, `tpa-bappenas`, `cpns-skd`, `pkn-stan`,
+  `toefl`, `gmat`), the scoring plugins (`scale_200_800`, `ielts_band`),
+  the question types (`choice`, `select`, `multi`, `text`) and the
+  `catalog.*` commands. Adding a dummy exam in the tests must need no
+  edit in the core.
 - **Waiting on:** nothing; Claude starts on the next "lanjut".
-- **Open branches:** `feat/phase-0-skeleton` (Phase 0, in review).
+- **Open branches:** `feat/phase-1-api-auth` (Phase 1, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
 
 Already in the first commit (by Claude, do not redo): `core/registry.py`,
@@ -20,12 +22,19 @@ Already in the first commit (by Claude, do not redo): `core/registry.py`,
 (`Store` + `MemoryStore`), reference command `user.set_language` + test,
 `Makefile`, CI, docs.
 
+Phase 1 added: `api/app.py` (FastAPI: discovery, `POST`/`GET
+/api/commands/{name}`, error rendering, cache headers, CORS on `/api`),
+`core/auth.py` (Firebase ID token, dev token `dev:<uid>`, admin API tokens
+`ck_…` hashed in `api_tokens/`), `core/remote.py` (`cendekiara run
+--remote`), the commands `user.me`, `user.update_profile`, `token.create`,
+`token.revoke`.
+
 ## Phases
 
 | Phase | Status | Branch / PR | Notes |
 | --- | --- | --- | --- |
-| 0. Skeleton | in review | `feat/phase-0-skeleton` | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
-| 1. API + auth | not started | — | |
+| 0. Skeleton | merged | PR #1 | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
+| 1. API + auth | in review | `feat/phase-1-api-auth` | FastAPI app, `core/auth.py` (dev + Firebase + API tokens), `user.me`, `user.update_profile`, `token.create/revoke`, `run --remote` |
 | 2. Firestore + plugins | not started | — | |
 | 3. Question bank | not started | — | |
 | 4. Exam engine | not started | — | |
@@ -85,6 +94,8 @@ model used in the run summary.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — Phase 1: an API token acts as the admin who created it (uid of the creator, admin, `via=remote`) and may not run commands with `allow_jobs=False` (`token.create`, `token.revoke`); the token format is `ck_` + 32 url-safe bytes, stored as its SHA-256 hash only; the remote CLI builds no local profile at all (no store, no auth mode): it needs only `CENDEKIARA_TOKEN` and the URL.
+- 2026-10-21 — Phase 1: the API refuses to start when `APP_ENV` was not set explicitly, and the settings are built on first use, not on import, so the remote CLI never validates a profile it does not use.
 - 2026-10-21 — Phase 0: settings default to the dev profile; APP_ENV=prod requires STORE=firestore + AUTH_MODE=firebase; system.health is public but hides env/store from anonymous callers; ADMIN_EMAILS is comma-separated.
 - 2026-10-21 — Rebuild from scratch in `new-cendekiara`; old repo is a functional reference.
 - 2026-10-21 — Keep Firebase Hosting + Cloud Run + Firestore + Firebase Auth.
