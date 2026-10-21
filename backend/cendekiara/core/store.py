@@ -29,7 +29,7 @@ def load[M: Model](store: Store, collection: str, doc_id: str, model: type[M]) -
     doc = store.get(collection, doc_id)
     if doc is None:
         raise AppError("not_found", f"{collection}/{doc_id} not found")
-    return model.model_validate(doc)
+    return model.from_doc(doc)
 
 
 def save(store: Store, collection: str, doc_id: str, obj: Model) -> None:
