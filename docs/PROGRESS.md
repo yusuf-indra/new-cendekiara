@@ -6,11 +6,13 @@ Definition of done).
 
 ## Now
 
-- **Next step:** plan Phase 0 (skeleton: config, clock, logging,
-  `system.health`, CLI `commands list [--json]` + `run`) per
-  `docs/08-roadmap.md`. Default free model.
+- **Next step:** Phase 1 (API + auth): FastAPI app (`api/app.py`),
+  `core/auth.py` (Firebase ID token, `AUTH_MODE=dev` refused unless
+  `APP_ENV=dev`), admin by `ADMIN_EMAILS`, admin API tokens
+  (`token.create/revoke`, hashed) and `cendekiara run --remote`. Phase 1
+  must also refuse to serve when `APP_ENV` was not set explicitly.
 - **Waiting on:** nothing; Claude starts on the next "lanjut".
-- **Open branches:** none.
+- **Open branches:** `feat/phase-0-skeleton` (Phase 0, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
 
 Already in the first commit (by Claude, do not redo): `core/registry.py`,
@@ -22,7 +24,7 @@ Already in the first commit (by Claude, do not redo): `core/registry.py`,
 
 | Phase | Status | Branch / PR | Notes |
 | --- | --- | --- | --- |
-| 0. Skeleton | not started | — | |
+| 0. Skeleton | in review | `feat/phase-0-skeleton` | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
 | 1. API + auth | not started | — | |
 | 2. Firestore + plugins | not started | — | |
 | 3. Question bank | not started | — | |
@@ -83,6 +85,7 @@ model used in the run summary.
 
 ## Decisions log (newest first)
 
+- 2026-10-21 — Phase 0: settings default to the dev profile; APP_ENV=prod requires STORE=firestore + AUTH_MODE=firebase; system.health is public but hides env/store from anonymous callers; ADMIN_EMAILS is comma-separated.
 - 2026-10-21 — Rebuild from scratch in `new-cendekiara`; old repo is a functional reference.
 - 2026-10-21 — Keep Firebase Hosting + Cloud Run + Firestore + Firebase Auth.
 - 2026-10-21 — Public SEO pages server-rendered (FastAPI + Jinja); app behind login = React + Vite + TS SPA; Android = Capacitor wrapping the same SPA.
