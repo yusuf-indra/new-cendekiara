@@ -52,6 +52,13 @@ def create_app(store: Store | None = None, settings: Settings | None = None) -> 
     app.state.store = store or build_store(cfg.store)
     app.state.auth = Authenticator(cfg, app.state.store)
     app.add_middleware(ApiOnlyCORSMiddleware, allow_origins=cfg.cors_origins())
+    _add_error_handlers(app)
+    _add_routes(app)
+    return app
+
+
+def _add_error_handlers(app: FastAPI) -> None:
+    """Every error of the API has the same body."""
 
     @app.exception_handler(AppError)
     async def _command_error(request: Request, exc: AppError) -> JSONResponse:
@@ -67,6 +74,10 @@ def create_app(store: Store | None = None, settings: Settings | None = None) -> 
             response.headers[key] = value
         return response
 
+
+def _add_routes(app: FastAPI) -> None:
+    """The routes: discovery and one route per command."""
+
     @app.get("/api/commands")
     async def list_commands(request: Request) -> JSONResponse:
         """The commands this caller may run, with their schemas."""
@@ -77,25 +88,30 @@ def create_app(store: Store | None = None, settings: Settings | None = None) -> 
     @app.post("/api/commands/{name}")
     async def post_command(name: str, request: Request) -> JSONResponse:
         """Run a command; the body is the arguments of the command."""
-        return await _run(name, request, read_body=True)
+        return await _run(app, name, request, read_body=True)
 
     @app.get("/api/commands/{name}")
     async def get_command(name: str, request: Request) -> JSONResponse:
         """Run a readonly command; the query string is the arguments."""
-        return await _run(name, request, read_body=False)
+        return await _run(app, name, request, read_body=False)
 
-    async def _run(name: str, request: Request, *, read_body: bool) -> JSONResponse:
-        identity = _identity(request)
-        info = registry.get(name)
-        ctx = Context(identity.actor, app.state.store, site=cfg.site, via=identity.via)
-        registry.check_access(info, ctx)
-        if not read_body and not info.readonly:
-            raise AppError("method_not_allowed", f"{name} is only served with POST")
-        args = await _args(request, read_body)
-        result = registry.execute(name, args, ctx)
-        return _json(result.model_dump(by_alias=True, mode="json"), cache=cache_control(info))
 
-    return app
+async def _run(app: FastAPI, name: str, request: Request, *, read_body: bool) -> JSONResponse:
+    """Run one command for the caller and answer with its result."""
+    identity = _identity(request)
+    info = registry.get(name)
+    ctx = Context(
+        identity.actor,
+        app.state.store,
+        site=app.state.settings.site,
+        via=identity.via,
+    )
+    registry.check_access(info, ctx)
+    if not read_body and not info.readonly:
+        raise AppError("method_not_allowed", f"{name} is only served with POST")
+    args = await _args(request, read_body)
+    result = registry.execute(name, args, ctx)
+    return _json(result.model_dump(by_alias=True, mode="json"), cache=cache_control(info))
 
 
 def _refuse_unsafe_profile(cfg: Settings) -> None:
