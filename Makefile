@@ -1,15 +1,19 @@
-.PHONY: install dev check schema
+.PHONY: install dev cli check schema
 ROOT := $(CURDIR)
 VENV := $(ROOT)/backend/.venv
 PY := $(shell [ -x "$(VENV)/bin/python" ] && echo "$(VENV)/bin/python" || echo python3)
+DEV_ENV := APP_ENV=dev STORE=memory AUTH_MODE=dev JOBS=inline
 
 install:  ## set up backend venv (+ frontend deps once frontend/ exists)
 	cd backend && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]"
 	@if [ -d frontend ]; then cd frontend && npm ci; fi
 
 dev:      ## run the backend locally (STORE=memory, AUTH_MODE=dev) + Vite dev server
-	cd backend && $(PY) -m uvicorn cendekiara.api.app:app --reload --port 8080 & \
+	cd backend && $(DEV_ENV) $(PY) -m uvicorn cendekiara.api.app:app --reload --port 8080 & \
 	if [ -d frontend ]; then cd frontend && npm run dev; fi
+
+cli:      ## run a command: make cli ARGS="commands list --json"
+	cd backend && $(DEV_ENV) $(PY) -m cendekiara.cli $(ARGS)
 
 check:    ## exactly what CI runs; must pass before a merge
 	cd backend && $(PY) -m ruff check . && $(PY) -m ruff format --check . && $(PY) -m mypy cendekiara && $(PY) -m pytest -q
