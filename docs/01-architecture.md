@@ -58,19 +58,44 @@ redesign, not a copy.
 ## Request flow (app)
 
 1. SPA → `POST /api/commands/attempt.submit` with token and JSON args.
-2. `api/` verifies the token → `Actor`, builds `Context(actor, store, site)`.
+2. `api/` verifies the token (`core/auth.py`) → `Actor`, builds
+   `Context(actor, store, site)`.
 3. `registry.execute` checks login/admin/job rules, validates args with the
    command's input model, runs it, returns the output model as JSON.
 4. Errors are `AppError(code, message, hint)` → JSON `{error: {...}}` with
    the status from `core/errors.HTTP_STATUS`.
+
+## The API (Phase 1)
+
+`backend/cendekiara/api/app.py` is a thin FastAPI app:
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/commands` | Discovery: the commands the caller may run, with their schemas |
+| `POST /api/commands/{name}` | Run a command; the body is the arguments |
+| `GET /api/commands/{name}` | Run a readonly command; the query string is the arguments |
+
+- The caller comes from the `Authorization` header only: a Firebase ID token
+  (`AUTH_MODE=firebase`), a dev token `dev:<uid>` (`AUTH_MODE=dev`, refused
+  unless `APP_ENV=dev`) or an admin API token `ck_…` (hashed, admin only).
+  A missing or malformed header is anonymous; a token that cannot be
+  verified is `invalid_token` (401).
+- Admins are the emails in `ADMIN_EMAILS`; admin commands look absent (404)
+  to everyone else.
+- CORS is only on `/api`, and only for `SITE_URL` and `CAPACITOR_ORIGIN`.
+- The API refuses to start when `APP_ENV` was not set explicitly.
 
 ## Local development
 
 No cloud needed: `STORE=memory` (seeded from `backend/cendekiara/seed/`),
 `AUTH_MODE=dev` (token `dev:<uid>`, admin if `dev:admin`), `AI_PROVIDER=fake`,
 `JOBS=inline`. `AUTH_MODE=dev` and `AI_PROVIDER=fake` are refused unless
-`APP_ENV=dev`. `make dev` runs the backend on :8080 and Vite on :5173
-(proxying `/api`).
+`APP_ENV=dev`, and the API needs `APP_ENV` to be set explicitly. `make dev`
+runs the backend on :8080 and Vite on :5173 (proxying `/api`).
+
+`cendekiara run <name> --remote <url>` runs a command on another server with
+an admin API token (`CENDEKIARA_TOKEN`): no store, no auth mode and no cloud
+credentials on this machine.
 
 ## Folder layout
 
