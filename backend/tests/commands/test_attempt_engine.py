@@ -131,6 +131,19 @@ def test_attempt_start_of_a_draft_package_is_not_found(ctx: Context) -> None:
     assert err.value.code == "not_found"
 
 
+def test_attempt_start_of_a_malformed_package_is_not_found(ctx: Context) -> None:
+    # A package document that does not fit the model is not a package: it must
+    # not reach the assembler.
+    ctx.store.set(
+        "tests",
+        "tpa-broken",
+        {"id": "tpa-broken", "exam": "tpa-bappenas", "sections": "not-a-dict", "status": "active"},
+    )
+    with pytest.raises(AppError) as err:
+        registry.execute("attempt.start", {"test_id": "tpa-broken", "mode": "exam"}, ctx)
+    assert err.value.code == "not_found"
+
+
 def test_attempt_start_of_a_practice_set(ctx: Context) -> None:
     seed_package(ctx)
     ctx.store.set("items", "practice-1", make_item("practice-1"))
@@ -140,6 +153,15 @@ def test_attempt_start_of_a_practice_set(ctx: Context) -> None:
     assert data["mode"] == "practice"
     assert data["deadlineAt"] is None  # a practice set has no timer by default
     assert data["package"]["sections"][0]["items"][0]["id"] == "practice-1"
+
+
+def test_attempt_start_ignores_a_duration_that_is_not_a_number(ctx: Context) -> None:
+    ctx.store.set("items", "practice-1", make_item("practice-1"))
+    package = {"exam": "tpa-bappenas", "sections": {"kuantitatif": ["practice-1"]}, "durationSec": True}
+    out = registry.execute("attempt.start", {"mode": "practice", "package": package}, ctx)
+    data = out.model_dump(by_alias=True)
+    assert data["durationSec"] is None
+    assert data["deadlineAt"] is None
 
 
 def test_attempt_start_refuses_an_exam_item_in_a_practice_set(ctx: Context) -> None:

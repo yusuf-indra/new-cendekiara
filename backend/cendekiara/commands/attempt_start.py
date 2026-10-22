@@ -8,6 +8,7 @@ never sends the content of a question, only which items a practice set uses
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from typing import Any, Literal
 
 from cendekiara.core import assemble
@@ -92,7 +93,11 @@ def _exam_package(ctx: Context, test_id: str | None) -> Test:
     doc = ctx.store.get("tests", test_id)
     if doc is None:
         raise AppError("not_found", f"tests/{test_id} not found")
-    test = Test.from_doc(doc)
+    try:
+        test = Test.from_doc(doc)
+    except (ValueError, TypeError):
+        # A malformed package is not a package: it must not reach the assembler.
+        raise AppError("not_found", f"tests/{test_id} not found") from None
     if test.status != "active":
         raise AppError("not_found", f"tests/{test_id} not found")
     return test
@@ -130,7 +135,7 @@ def _practice_package(ctx: Context, package: dict[str, Any] | None) -> Test:
         id=f"practice-{uuid.uuid4().hex[:8]}",
         exam=exam_id,
         sections=clean,
-        duration_sec=duration if isinstance(duration, int) else None,
+        duration_sec=duration if isinstance(duration, int) and not isinstance(duration, bool) else None,
         free=True,
         wrong_penalty=0.0,
         status="active",
@@ -152,6 +157,4 @@ def _deadline(duration_sec: int | None) -> str | None:
     """The deadline of the attempt; None when the attempt has no timer."""
     if not duration_sec or duration_sec <= 0:
         return None
-    from datetime import timedelta
-
     return (now() + timedelta(seconds=duration_sec)).isoformat()
