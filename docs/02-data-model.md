@@ -18,7 +18,7 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
 | `item_keys/{itemId}` | answers, explanations, transcripts, `aiCheck`. **Server only, never sent before submit.** | `item.*` (admin) |
 | `families/{familyId}` | near-identical questions: name, `method` (shared solution), optional video link | `family.*` |
 | `tests/{testId}` | a package: exam, sections → `itemIds`, duration, `free`, `wrongPenalty`, status | `test.*` (admin) |
-| `attempts/{attemptId}` | uid, testId or embedded practice package (snapshot), mode, answers, timings, flags, deadlineAt, status (in_progress/paused/submitted), result (scored only on submit), free, wrongPenalty | `attempt.*` |
+| `attempts/{attemptId}` | uid, testId (a practice attempt gets a generated id), mode, the assembled package snapshot, answers, timings, flags (all keyed by the question number), deadlineAt, status (in_progress/paused/submitted), result (scored only on submit), free, wrongPenalty | `attempt.*` |
 | `question_stats/{questionId}` | increments from Exam mode: count, correct, blank, flagged, time histogram, option picks, discrimination data | worker after `attempt.submit` |
 | `leaderboard/{testId}__{uid}` | first Exam attempt per package: score, week, month, display name | worker |
 | `articles/{slug}` | blog: lang, title, markdown body, `math`, `sites`, status | `article.*` (admin) |
@@ -69,6 +69,40 @@ near-identical questions sharing one solution method.
 "durationSec": 180, "free": true, "wrongPenalty": 0, "status": "active",
 "sites": ["id"]}`. Section order and item order are the display order; question
 numbers are assigned on assembly, not stored.
+
+`attempts/{attemptId}`:
+
+```jsonc
+{
+  "id": "a1b2c3",
+  "uid": "u-siti",
+  "mode": "exam",                    // exam | practice
+  "testId": "tpa-mini",              // the package (a practice attempt gets a generated id)
+  "exam": "tpa-bappenas",
+  "packageSnapshot": {…},            // the assembled package, as it was taken (never a key)
+  "status": "in_progress",           // in_progress | paused | submitted
+  "answers": {"1": "B", "7": ["A", "C"]},
+  "timings": {"1": 42.5},            // seconds
+  "flags": ["1"],                    // the flagged questions
+  "deadlineAt": "2026-10-21T12:03:00+00:00",   // absent when the attempt has no timer
+  "startedAt": "…", "updatedAt": "…", "pausedAt": null, "submittedAt": null,
+  "free": true,
+  "wrongPenalty": 0,
+  "durationSec": 180,
+  "result": null                     // the score, written on submit
+}
+```
+
+The answers, the timings and the flags are keyed by the **number** of the
+question (the global number the assembly gives it), never by the id of the
+question inside its item: that id repeats in every item of a package ("q1" of
+every passage), so it cannot identify an answer. A `multi` answer is a list
+of option ids; every other answer is a string.
+
+`result` (written on submit): `{"score": 512.0, "scoreType": "number",
+"correct": 21, "wrong": 7, "blank": 2, "wrongPenalty": 0.25, "sections":
+{"kuantitatif": {"correct": 8, "wrong": 3, "blank": 1, "marks": 7.25,
+"score": 470.0, "timeSec": 320.5}}}`. The score is always an estimate.
 
 `jobs/{jobId}`: `{"id", "name", "args": {…}, "actor": {"uid", "email"},
 "createdBy": "<uid>", "status": "queued|running|done|failed",

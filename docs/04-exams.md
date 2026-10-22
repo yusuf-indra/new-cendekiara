@@ -63,9 +63,12 @@ def score(result: RawResult, test: TestDef) -> Score: ...
 
 `RawResult` = per-section correct / wrong / blank / marks; `Score` =
 `{score, scoreType, sections{...}, correct, wrong, blank}`. `wrongPenalty`
-(default 0) is applied by the core before the plugin. Every method's
-docstring says it is an **estimate** and how it is computed. Methods:
-`scale_200_800` (linear `200 + 600 × raw/total`), `ielts_band` (own estimate
+(default 0) is applied by the core before the plugin: every wrong answer costs
+`wrongPenalty` marks, so the **marks** of a section (one mark per correct
+question, minus the penalty, never below zero) are what a method scores: a
+package with a penalty scores lower. Every method's docstring says it is an
+**estimate** and how it is computed. Methods:
+`scale_200_800` (linear `200 + 600 × marks/total`), `ielts_band` (own estimate
 table, short tests scaled to 40), later `cpns_skd` (TWK/TIU 5/0, TKP 1–5,
 passing grades), AI rubric scoring for Writing/Speaking.
 
@@ -116,3 +119,8 @@ server: answers saved/submitted after `deadline + SUBMIT_GRACE_SEC` are refused
 in relevant operations; the server alone decides time (client timestamps are
 never trusted). `wrongPenalty` is applied by the core before/while scoring;
 results include per-section breakdowns from scoring plugins.
+
+The answers, the timings and the flags of an attempt are keyed by the
+**number** of the question (the global number the assembly gives it), never by
+the id of the question inside its item: that id repeats in every item of a
+package ("q1" of every passage), so it cannot identify an answer.
