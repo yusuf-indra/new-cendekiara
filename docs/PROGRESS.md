@@ -6,11 +6,9 @@ Definition of done).
 
 ## Now
 
-- **Next step:** Phase 4 (exam engine): `attempt.start/save/submit/get/history`,
-  `attempt.pause/resume`, `practice.build`, `study.next/check`, deadlines,
-  timings, `wrongPenalty`, per-section results.
-- **Waiting on:** nothing; Claude starts on the next "lanjut".
-- **Open branches:** `feat/phase-3-question-bank` (Phase 3, in review).
+- **Next step:** Phase 5 (frontend); Phase 4 is in review and waits for its merge.
+- **Waiting on:** nothing.
+- **Open branches:** `feat/phase-4-exam-engine` (Phase 4, in review).
 - **Deploys:** none yet. Merging to `main` only runs CI until Phase 8.
 - **Follow-up:** `system.health` reads the global settings; move to
   `ctx.settings` (a half-done attempt is in `git stash` on the VPS, may be
@@ -18,6 +16,7 @@ Definition of done).
 - **Follow-up:** Jobs: Cloud Tasks may deliver a job twice; make the
   queued→running switch atomic (Firestore transaction / precondition) before
   production (Phase 8).
+- **Follow-up:** Rate limits are per Cloud Run instance; add a shared limiter before production (Phase 8).
 
 Already in the first commit (by Claude, do not redo): `core/registry.py`,
 `core/context.py`, `core/errors.py`, `core/models.py`, `core/store.py`
@@ -49,6 +48,18 @@ inline-thread and Cloud Tasks dispatch, the worker `run_job`, the OIDC
 `job.get`, `catalog.tests`, the worker endpoint `/internal/jobs/run`, and the
 CLI `cendekiara jobs run`.
 
+Phase 4 added: `core/attempts.py` (the deadlines, the timings and the grading
+of an attempt), `core/rate_limit.py` (the in-memory limiter of `attempt.save`
+and `study.check`), the attempt models in `core/models.py`
+(`Attempt`, `AttemptResult`), `core/items.py::exam_package_item_ids` (the
+items of every package), the commands `attempt.start/save/submit/get/history`,
+`attempt.pause/resume`, `practice.build`, `study.next/check`, the settings
+`SUBMIT_GRACE_SEC`, `ATTEMPT_SAVE_RATE_LIMIT`, `ATTEMPT_SAVE_MAX_BYTES`,
+`STUDY_CHECK_RATE_LIMIT`, `STUDY_CHECK_MAX_BYTES`, and the `rate_limited`
+error (429). A timed-out attempt is graded from the answers that were saved
+in time (`late: true`); `attempt.get` and `attempt.history` submit it the
+same way, so a student never sees a stuck attempt.
+
 ## Phases
 
 | Phase | Status | Branch / PR | Notes |
@@ -56,8 +67,8 @@ CLI `cendekiara jobs run`.
 | 0. Skeleton | merged | PR #1 | config, clock, logging, `system.health`, CLI (`commands list [--json]`, `run --arg k=v`); `make check` green |
 | 1. API + auth | merged | PR #2 | FastAPI app, `core/auth.py` (dev + Firebase + API tokens), `user.me`, `user.update_profile`, `token.create/revoke`, `run --remote` |
 | 2. Firestore + plugins | merged | PR #3 | Firestore store, seed loader, plugin discovery, 6 exams, 2 scoring methods, 4 question types, `catalog.categories`/`catalog.exam` |
-| 3. Question bank | in review | `feat/phase-3-question-bank` | item/key/family/test models + validation, `item.validate/create/update/retire`, `item.import` (queued, dry run), `bank.assemble`/`bank.export`, jobs (`core/jobs.py`, `job.get`, `jobs run`), `catalog.tests` |
-| 4. Exam engine | not started | — | |
+| 3. Question bank | merged | PR #4 | item/key/family/test models + validation, `item.validate/create/update/retire`, `item.import` (queued, dry run), `bank.assemble`/`bank.export`, jobs (`core/jobs.py`, `job.get`, `jobs run`), `catalog.tests` |
+| 4. Exam engine | in review | `feat/phase-4-exam-engine` | `attempt.start/save/submit/get/history`, `attempt.pause/resume`, `practice.build`, `study.next/check`, server deadlines + grace, timings, `wrongPenalty`, per-section results; the answers are keyed by the question number; a timed-out attempt is graded from the answers saved in time (`late`) |
 | 5. App shell (React SPA) | not started | — | |
 | 6. Public site (SEO) | not started | — | |
 | 7. Admin + AI + stats | not started | — | |
@@ -119,6 +130,8 @@ topped up. The `opencode/*` free models still work.
 
 ## Decisions log (newest first)
 
+- 2026-10-22 — Phase 4: a timed-out attempt is graded from the answers saved before the deadline (late: true); attempt.get auto-submits it; practice requires usage.practice.
+- 2026-10-22 — Phase 4 (exam engine): admins may read any attempt (`attempt.get`) for support but may not save/submit/pause/resume another user's attempt (→ `not_found` to avoid revealing existence); acting uid logged on admin reads. Server time only; `attempt.save` after `deadline + SUBMIT_GRACE_SEC` refused, `attempt.submit` grades only stored answers (may take final timings). Submitted attempts immutable. Keys/explanations/transcripts/aiCheck never in in-progress outputs/history. `practice.build` and `study.next` only use items not referenced by any `tests/` document; `study.check` on an exam-package item → `not_found`. Rate/size limits on `attempt.save` and `study.check` (in-memory). Practice has no timer by default, same package repeatable, `attempt.save` merges answers/timings/flags, `free` stored, no entitlement until Phase 10. The answers, the timings and the flags are keyed by the **number** of the question (the global number of the assembly), not by the id of the question inside its item: that id repeats in every item of a package, so it cannot identify an answer; an answer for a question that is not in the package is refused. The score of a section is computed from its **marks** (one per correct answer, minus the wrong penalty), so `wrongPenalty` really lowers the score — the scoring plugins read the marks, not the count of correct answers.
 - 2026-10-21 — Tests: the job queue never starts a thread in the test
   suite: `tests/conftest.py` replaces `jobs._dispatch` (`no_background_dispatch`,
   autouse), so a test that runs the job itself (`jobs.run_job`) cannot race the

@@ -31,7 +31,9 @@
    soon as its owner's email is no longer in `ADMIN_EMAILS`. Tokens are never
    logged and never stored in clear.
 8. **Server-enforced time**: answers saved after `deadline + SUBMIT_GRACE_SEC`
-   are ignored; the last autosave counts. Timings capped at 3 h per question.
+   are refused; the last autosave counts. A timed-out attempt is graded from
+   the answers that were saved in time (`late: true`). Timings capped at 3 h
+   per question.
 9. **No secrets in the repo.** Secrets in Secret Manager / env vars; deploy
    via Workload Identity Federation (no JSON keys). `.env` is gitignored.
 10. **Escaping**: React and Jinja escape text; Markdown with raw HTML off;
@@ -81,3 +83,15 @@
   colours, logo and identity are Cendekiara's.
 - Always show that scores are **estimates** and that the product is not
   affiliated with the owners of IELTS, Bappenas, BKN or PKN STAN.
+
+
+## Exam engine security
+
+- **Ownership**: Attempts are owned by `uid`. Owner may read/save/submit/pause/resume. An admin may READ (`attempt.get`) any attempt for support, but may NOT save, submit, pause or resume another user's attempt (→ `not_found` for non-owners so existence is not revealed). The acting uid is logged on admin reads.
+- **Server time only**: The server alone decides time; client timestamps are never trusted. `attempt.save` after `deadline + SUBMIT_GRACE_SEC` → refused; `attempt.submit` grades only the stored answers (it does not accept final answers; it may carry a final timings map). The owner may always submit: a submit after the deadline + the grace is `late` — it grades the answers that were saved in time and ignores the timings that come with it. `attempt.get` and `attempt.history` submit such an attempt the same way, for the owner only: an admin read never changes another user's attempt.
+- **Immutability**: A submitted attempt is immutable (`save`/`submit`/`pause`/`resume` → `conflict`).
+- **Package snapshot**: The attempt stores the assembled package it was taken with, and every answer is checked against it: an answer for a question that is not in the package is refused (`invalid_args`). The client never sends the content of a question (only which items a practice set uses), so it cannot smuggle one into an attempt.
+- **Key leakage**: Keys/explanations read only at submit/result time, only revealed when the exam's rules allow; in-progress `attempt.get`, `attempt.start`, `attempt.save` and `attempt.history` never contain key values, explanations, transcripts or `aiCheck`.
+- **Practice/study isolation**: `practice.build` and `study.next` only use items that are NOT referenced by any `tests/` document (any status) — exam-package items never appear in practice or study, so their keys cannot be harvested. `study.check` on an exam-package item → `not_found`. A practice set only holds items flagged for practice (`usage.practice`), a study item only items flagged for study (`usage.study`): an item of another mode alone is never offered.
+- **Rate/size limits**: Rate/size limits on `attempt.save` and `study.check` (in-memory limiter, `rate_limited` error; max answer size).
+- **Practice rules**: Practice sets have no timer by default (client may send `durationSec`); the same package may be taken multiple times; `attempt.save` merges answers/timings per key and replaces the flag list; store `free` on the attempt, no entitlement check until Phase 10.

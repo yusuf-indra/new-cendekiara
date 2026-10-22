@@ -44,7 +44,9 @@ def score(result: RawResult, test: TestSpec) -> Score:
 
     Each section's raw score is scaled to 40 questions (a short test counts as
     if it had 40), mapped to a band through our own estimate table, then the
-    section bands are averaged and rounded to the nearest half band.
+    section bands are averaged and rounded to the nearest half band. The raw
+    score is the marks of the section (one mark per correct question, minus
+    the wrong penalty the core already applied).
     """
     section_bands: dict[str, float] = {}
     for section_id, spec in test.sections.items():
@@ -52,7 +54,7 @@ def score(result: RawResult, test: TestSpec) -> Score:
         if section is None or spec.total <= 0:
             section_bands[section_id] = 0.0
             continue
-        scaled = round(section.correct * 40 / spec.total)
+        scaled = round(section.marks * 40 / spec.total)
         section_bands[section_id] = _band(scaled)
 
     if section_bands:

@@ -14,6 +14,7 @@ HTTP_STATUS: dict[str, int] = {
     "conflict": 409,
     "deadline_passed": 409,
     "quota_exceeded": 402,
+    "rate_limited": 429,
     "server_error": 500,
     "internal_error": 500,  # a bug in a command: the details stay in the server log
 }

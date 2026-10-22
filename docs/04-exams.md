@@ -63,9 +63,12 @@ def score(result: RawResult, test: TestDef) -> Score: ...
 
 `RawResult` = per-section correct / wrong / blank / marks; `Score` =
 `{score, scoreType, sections{...}, correct, wrong, blank}`. `wrongPenalty`
-(default 0) is applied by the core before the plugin. Every method's
-docstring says it is an **estimate** and how it is computed. Methods:
-`scale_200_800` (linear `200 + 600 × raw/total`), `ielts_band` (own estimate
+(default 0) is applied by the core before the plugin: every wrong answer costs
+`wrongPenalty` marks, so the **marks** of a section (one mark per correct
+question, minus the penalty, never below zero) are what a method scores: a
+package with a penalty scores lower. Every method's docstring says it is an
+**estimate** and how it is computed. Methods:
+`scale_200_800` (linear `200 + 600 × marks/total`), `ielts_band` (own estimate
 table, short tests scaled to 40), later `cpns_skd` (TWK/TIU 5/0, TKP 1–5,
 passing grades), AI rubric scoring for Writing/Speaking.
 
@@ -107,10 +110,29 @@ autosave every 15 s and on change of question, submit, timings).
 | Study | one item per screen, `study.check` graded on the server | – (not stored) | no |
 
 Practice picks items from different families first; siblings only fill up
-the count. Study uses only `usage.study` items that are in no exam package.
+the count. A practice set only holds the items flagged for practice
+(`usage.practice`) and a study item only the items flagged for study
+(`usage.study`); an item flagged for another mode alone is never offered,
+and neither is an item of an exam package.
 
 Time per question (`timings`, seconds) is measured in the browser only while
 the question is visible and the page is visible, sent with autosave/submit,
 capped at 3 h per question by the server. Deadlines are enforced on the
-server: answers after `deadline + SUBMIT_GRACE_SEC` are ignored and the last
-autosave counts.
+server: an answer saved after `deadline + SUBMIT_GRACE_SEC` is refused; the
+server alone decides time (client timestamps are never trusted).
+
+Running out of time is not a dead end: the owner may always submit, and a
+submit after the deadline + the grace is graded from the answers that were
+saved in time and marked `late: true` (the timings that come with a late
+submit are ignored). An attempt that ran out of time is submitted the same
+way when the owner reads it (`attempt.get`, `attempt.history`), so the
+student sees a result instead of an attempt that stays in progress. A
+submitted attempt is immutable.
+
+`wrongPenalty` is applied by the core before/while scoring; results include
+per-section breakdowns from scoring plugins.
+
+The answers, the timings and the flags of an attempt are keyed by the
+**number** of the question (the global number the assembly gives it), never by
+the id of the question inside its item: that id repeats in every item of a
+package ("q1" of every passage), so it cannot identify an answer.

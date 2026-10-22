@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     worker_url: str = ""  # the /internal/jobs/run audience (Cloud Tasks OIDC)
     tasks_service_account: str = ""  # the service account Cloud Tasks runs as
     tasks_queue: str = ""  # full queue path: projects/…/locations/…/queues/…
+    submit_grace_sec: int = 60
+    attempt_save_rate_limit: int = 30
+    attempt_save_max_bytes: int = 20000
+    study_check_rate_limit: int = 60
+    study_check_max_bytes: int = 10000
 
     @field_validator("admin_emails", mode="before")
     @classmethod
