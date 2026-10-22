@@ -142,6 +142,24 @@ class Test(Model):
     updated_at: str | None = None
 
 
+def exam_package_item_ids(store: Store) -> set[str]:
+    """The ids of the items that belong to any package in `tests/`.
+
+    Every package counts, whatever its status: an item that is in a draft
+    package must not leak into practice or study either, or its key could be
+    harvested by building a practice set and reading the explanation.
+    """
+    used: set[str] = set()
+    for row in store.list("tests", limit=1000):
+        try:
+            test = Test.from_doc(row)
+        except (ValueError, TypeError):
+            continue
+        for item_ids in test.sections.values():
+            used.update(item_ids)
+    return used
+
+
 def validate_item(item: Item, key: ItemKey | None, store: Store) -> list[str]:
     """Validate an item (and, when given, its key). Empty list means valid.
 

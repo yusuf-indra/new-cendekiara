@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 Lang = Literal["id", "en"]
@@ -58,62 +58,47 @@ class ApiToken(Model):
     revoked_at: str | None = None
 
 
-class AttemptFlag(Model):
-    """A flagged question in an attempt."""
-
-    question_id: str
-    item_id: str | None = None
-
-
-class AttemptAnswer(Model):
-    """An answer stored in an attempt."""
-
-    question_id: str
-    answer: list[str] | str
-
-
-class AttemptTimings(Model):
-    """Time spent per question (seconds)."""
-
-    question_id: str
-    seconds: float
-
-
 class AttemptResultSection(Model):
-    """Per-section result for an attempt."""
+    """Per-section result of an attempt: counts, marks, score and time."""
 
     correct: int = 0
     wrong: int = 0
     blank: int = 0
     marks: float = 0.0
     score: float | None = None
+    time_sec: float = 0.0
 
 
 class AttemptResult(Model):
-    """The result of a submitted attempt."""
+    """`attempts/{attemptId}.result`: the score of a submitted attempt.
+
+    The score is always an estimate (docs/10-security.md, legal limits).
+    """
 
     score: float | None = None
     score_type: str | None = None
     correct: int = 0
     wrong: int = 0
     blank: int = 0
-    sections: dict[str, AttemptResultSection] = {}
-    raw_sections: dict[str, dict[str, float | int]] = {}
+    wrong_penalty: float = 0.0
+    sections: dict[str, AttemptResultSection] = Field(default_factory=dict)
 
 
 class Attempt(Model):
-    """`attempts/{attemptId}`: a running or submitted attempt."""
+    """`attempts/{attemptId}`: a running, paused or submitted attempt."""
 
     id: str
     uid: str
-    mode: Literal["exam", "practice", "study"] = "exam"
+    mode: Literal["exam", "practice"] = "exam"
     test_id: str | None = None
     exam: str | None = None
+    # The assembled package the attempt was taken with, so later edits of the
+    # items never change an old result (docs/02-data-model.md).
     package_snapshot: dict[str, Any] | None = None
     status: Literal["in_progress", "paused", "submitted"] = "in_progress"
-    answers: dict[str, list[str] | str] = {}
-    timings: dict[str, float] = {}
-    flags: list[str] = []
+    answers: dict[str, list[str] | str] = Field(default_factory=dict)
+    timings: dict[str, float] = Field(default_factory=dict)
+    flags: list[str] = Field(default_factory=list)
     deadline_at: str | None = None
     started_at: str
     updated_at: str | None = None
@@ -123,4 +108,3 @@ class Attempt(Model):
     wrong_penalty: float = 0.0
     duration_sec: int | None = None
     result: AttemptResult | None = None
-    admin_read_logged: bool = False

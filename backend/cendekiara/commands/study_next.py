@@ -1,11 +1,16 @@
-"""study.next: get next study item."""
+"""study.next: the next item to study.
+
+Study only shows items that are in no exam package: an exam item would leak
+its key through the check of the answer (docs/10-security.md, rule 1 and the
+"Exam engine security" section).
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from cendekiara.core.context import Context
-from cendekiara.core.items import Item, Test
+from cendekiara.core.items import Item, exam_package_item_ids
 from cendekiara.core.models import Model
 from cendekiara.core.registry import Command, command
 
@@ -19,44 +24,21 @@ class StudyNextOut(Model):
     item: dict[str, Any] | None = None
 
 
-def _items_in_any_test(store: Any) -> set[str]:
-    used = set()
-    try:
-        tests = store.list("tests", limit=10000)
-        for t in tests:
-            try:
-                test = Test.from_doc(t)
-                for _, item_ids in test.sections.items():
-                    for iid in item_ids:
-                        used.add(iid)
-            except (ValueError, TypeError):
-                continue
-    except (ValueError, TypeError):
-        pass
-    return used
-
-
-@command("study.next", summary="Get next study item", readonly=True)
+@command("study.next", summary="The next study item (never an exam item)", readonly=True)
 class StudyNext(Command[StudyNextIn, StudyNextOut]):
     def run(self, args: StudyNextIn, ctx: Context) -> StudyNextOut:
         ctx.actor.require_uid()
-        used = _items_in_any_test(ctx.store)
-        rows = ctx.store.list("items", limit=10000)
-        for row in rows:
+        used = exam_package_item_ids(ctx.store)
+        for row in ctx.store.list("items", limit=1000):
             try:
                 item = Item.from_doc(row)
             except (ValueError, TypeError):
                 continue
-            if item.status != "active":
-                continue
-            if item.id in used:
-                continue  # not in any exam package
-            if not item.usage.study:
+            if item.status != "active" or item.id in used or not item.usage.study:
                 continue
             if args.exam_id and item.exam != args.exam_id:
                 continue
             if args.section and item.section != args.section:
                 continue
-            # return item without keys
             return StudyNextOut(item=item.model_dump(by_alias=True))
         return StudyNextOut(item=None)

@@ -1,4 +1,9 @@
-"""attempt.get: get an attempt."""
+"""attempt.get: read one attempt.
+
+The owner may read their own attempt; an admin may read any attempt to help
+a student, and the read is logged with the acting uid. An admin may not
+change another user's attempt (docs/10-security.md, "Exam engine security").
+"""
 
 from __future__ import annotations
 
@@ -6,7 +11,7 @@ from typing import Any
 
 from cendekiara.core.context import Context
 from cendekiara.core.errors import AppError
-from cendekiara.core.models import Model
+from cendekiara.core.models import Attempt, Model
 from cendekiara.core.registry import Command, command
 
 
@@ -18,22 +23,20 @@ class AttemptGetOut(Model):
     attempt: dict[str, Any]
 
 
-@command("attempt.get", summary="Get an attempt")
+@command("attempt.get", summary="Read one attempt (an admin may read any attempt)")
 class AttemptGet(Command[AttemptGetIn, AttemptGetOut]):
     def run(self, args: AttemptGetIn, ctx: Context) -> AttemptGetOut:
-        uid = ctx.actor.uid
         doc = ctx.store.get("attempts", args.attempt_id)
-        if not doc:
+        if doc is None:
             raise AppError("not_found", "attempt not found")
-        # ownership check
-        if doc.get("uid") != uid and not ctx.actor.is_admin:
-            raise AppError("not_found", "attempt not found")
-        if ctx.actor.is_admin and doc.get("uid") != uid:
-            ctx.log.info("admin read attempt %s by %s", args.attempt_id, uid)
-        # never return keys/explanations/transcripts/aiCheck
-        attempt = dict(doc)
-        # strip any key info if present
-        attempt.pop("itemKeys", None)
-        attempt.pop("keys", None)
-        # ensure no key values leaked
-        return AttemptGetOut(attempt=attempt)
+        owner = doc.get("uid")
+        if owner != ctx.actor.uid:
+            if not ctx.actor.is_admin:
+                # Not the owner: the attempt does not exist for this student.
+                raise AppError("not_found", "attempt not found")
+            ctx.log.info("admin read attempt %s (owner %s) by %s", args.attempt_id, owner, ctx.actor.uid)
+        try:
+            attempt = Attempt.from_doc(doc)
+        except (ValueError, TypeError) as exc:
+            raise AppError("not_found", "attempt not found") from exc
+        return AttemptGetOut(attempt=attempt.to_doc())

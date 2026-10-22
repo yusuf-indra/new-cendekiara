@@ -1,7 +1,12 @@
-"""attempt.pause: pause a practice attempt."""
+"""attempt.pause: pause a practice attempt.
+
+Only a practice attempt can be paused (an exam runs until the deadline), and
+only its owner may pause it (docs/04-exams.md, modes).
+"""
 
 from __future__ import annotations
 
+from cendekiara.core.attempts import own_attempt
 from cendekiara.core.clock import now
 from cendekiara.core.context import Context
 from cendekiara.core.errors import AppError
@@ -14,7 +19,7 @@ class AttemptPauseIn(Model):
 
 
 class AttemptPauseOut(Model):
-    ok: bool = True
+    attempt_id: str
     status: str
 
 
@@ -22,18 +27,17 @@ class AttemptPauseOut(Model):
 class AttemptPause(Command[AttemptPauseIn, AttemptPauseOut]):
     def run(self, args: AttemptPauseIn, ctx: Context) -> AttemptPauseOut:
         uid = ctx.actor.require_uid()
-        doc = ctx.store.get("attempts", args.attempt_id)
-        if not doc:
-            raise AppError("not_found", "attempt not found")
-        if doc.get("uid") != uid:
-            raise AppError("not_found", "attempt not found")
-        if doc.get("status") == "submitted":
-            raise AppError("conflict", "attempt already submitted")
-        if doc.get("mode") != "practice":
-            raise AppError("invalid_args", "only practice attempts can be paused")
+        attempt = own_attempt(ctx.store, args.attempt_id, uid)
+        if attempt.status == "submitted":
+            raise AppError("conflict", "This attempt is already submitted")
+        if attempt.mode != "practice":
+            raise AppError("invalid_args", "Only a practice attempt can be paused")
+        if attempt.status == "paused":
+            raise AppError("conflict", "This attempt is already paused")
+        paused_at = now().isoformat()
         ctx.store.update(
             "attempts",
             args.attempt_id,
-            {"status": "paused", "pausedAt": now().isoformat(), "updatedAt": now().isoformat()},
+            {"status": "paused", "pausedAt": paused_at, "updatedAt": paused_at},
         )
-        return AttemptPauseOut(ok=True, status="paused")
+        return AttemptPauseOut(attempt_id=args.attempt_id, status="paused")

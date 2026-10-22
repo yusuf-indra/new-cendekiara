@@ -1,10 +1,17 @@
-"""attempt.submit: submit and grade."""
+"""attempt.submit: submit an attempt and grade the answers that were stored.
+
+The command never accepts final answers: it grades the answers `attempt.save`
+stored, so a client cannot send a better answer at the last moment. It may
+carry the last timings, which are stored but never change the score
+(docs/10-security.md, "Exam engine security").
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from cendekiara.core.attempts import cap_timings, get_submit_grace_sec, grade_attempt
+from cendekiara.core import config
+from cendekiara.core.attempts import cap_timings, grade_attempt, is_past_deadline, own_attempt, questions_of
 from cendekiara.core.clock import now
 from cendekiara.core.context import Context
 from cendekiara.core.errors import AppError
@@ -23,49 +30,35 @@ class AttemptSubmitOut(Model):
     result: dict[str, Any]
 
 
-@command("attempt.submit", summary="Submit an attempt for grading")
+@command("attempt.submit", summary="Submit an attempt and grade the stored answers")
 class AttemptSubmit(Command[AttemptSubmitIn, AttemptSubmitOut]):
     def run(self, args: AttemptSubmitIn, ctx: Context) -> AttemptSubmitOut:
         uid = ctx.actor.require_uid()
-        doc = ctx.store.get("attempts", args.attempt_id)
-        if not doc:
-            raise AppError("not_found", "attempt not found")
-        if doc.get("uid") != uid:
-            raise AppError("not_found", "attempt not found")
-        if doc.get("status") == "submitted":
-            raise AppError("conflict", "attempt already submitted")
-        updates: dict[str, Any] = {}
+        settings = ctx.settings or config.settings
+        attempt = own_attempt(ctx.store, args.attempt_id, uid)
+        if attempt.status == "submitted":
+            raise AppError("conflict", "This attempt is already submitted")
+        if is_past_deadline(attempt, settings.submit_grace_sec):
+            raise AppError("deadline_passed", "The time of this attempt is over")
+        result = grade_attempt(ctx.store, attempt)
+        submitted_at = now().isoformat()
+        update: dict[str, Any] = {
+            "status": "submitted",
+            "submittedAt": submitted_at,
+            "updatedAt": submitted_at,
+            "result": result.model_dump(by_alias=True),
+        }
         if args.timings:
-            timings = dict(doc.get("timings") or {})
-            for k, v in args.timings.items():
-                try:
-                    timings[k] = float(v)
-                except (TypeError, ValueError):
-                    continue
-            timings = cap_timings(timings)
-            updates["timings"] = timings
-        deadline_at = doc.get("deadlineAt") or doc.get("deadline_at")
-        if deadline_at:
-            try:
-                from datetime import datetime, timedelta
-
-                try:
-                    dld = datetime.fromisoformat(str(deadline_at).replace("Z", "+00:00"))
-                except (TypeError, ValueError):
-                    dld = None
-                if dld is not None:
-                    now_t = now()
-                    grace = get_submit_grace_sec(ctx.settings)
-                    if now_t > dld + timedelta(seconds=grace):
-                        raise AppError("deadline_passed", "deadline passed")
-            except AppError:
-                raise
-            except (TypeError, ValueError):
-                pass
-        result = grade_attempt(ctx.store, doc, doc.get("packageSnapshot") or doc.get("package_snapshot"))
-        updates["status"] = "submitted"
-        updates["submittedAt"] = now().isoformat()
-        updates["updatedAt"] = now().isoformat()
-        updates["result"] = result
-        ctx.store.update("attempts", args.attempt_id, updates)
-        return AttemptSubmitOut(attempt_id=args.attempt_id, status="submitted", result=result)
+            questions = questions_of(attempt)
+            timings = dict(attempt.timings)
+            timings.update(cap_timings(args.timings))
+            update["timings"] = {
+                number: seconds for number, seconds in timings.items() if number in questions
+            }
+        ctx.store.update("attempts", args.attempt_id, update)
+        ctx.log.info("attempt submitted: %s (%s)", args.attempt_id, uid)
+        return AttemptSubmitOut(
+            attempt_id=args.attempt_id,
+            status="submitted",
+            result=result.model_dump(by_alias=True),
+        )
