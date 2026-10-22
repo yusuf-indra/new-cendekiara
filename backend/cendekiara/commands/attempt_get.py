@@ -23,7 +23,7 @@ class AttemptGetOut(Model):
     attempt: dict[str, Any]
 
 
-@command("attempt.get", summary="Read one attempt (an admin may read any attempt)")
+@command("attempt.get", summary="Read one attempt (an admin may read any attempt)", readonly=True)
 class AttemptGet(Command[AttemptGetIn, AttemptGetOut]):
     def run(self, args: AttemptGetIn, ctx: Context) -> AttemptGetOut:
         doc = ctx.store.get("attempts", args.attempt_id)
