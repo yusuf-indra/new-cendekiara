@@ -107,8 +107,9 @@ def _practice_package(ctx: Context, package: dict[str, Any] | None) -> Test:
     """The package of a practice attempt, rebuilt from the bank.
 
     The client sends only the ids of the items it wants. The server checks
-    every id (active item, and not part of any exam package) and assembles the
-    content itself, so a practice attempt can never carry an exam question.
+    every id (active item, flagged for practice, and not part of any exam
+    package) and assembles the content itself, so a practice attempt can
+    never carry an exam question.
     """
     if not package:
         raise AppError("invalid_args", "package is required for a practice attempt")
@@ -127,7 +128,7 @@ def _practice_package(ctx: Context, package: dict[str, Any] | None) -> Test:
             if item_id in used:
                 # An exam item would leak its key through the explanation.
                 raise AppError("invalid_args", "this item is not available for practice")
-            if not _is_active_item(ctx, item_id):
+            if not _is_practice_item(ctx, item_id):
                 raise AppError("invalid_args", "this item is not available for practice")
             clean.setdefault(section_id, []).append(item_id)
     duration = package.get("durationSec")
@@ -142,15 +143,16 @@ def _practice_package(ctx: Context, package: dict[str, Any] | None) -> Test:
     )
 
 
-def _is_active_item(ctx: Context, item_id: str) -> bool:
-    """Is the item in the bank and active?"""
+def _is_practice_item(ctx: Context, item_id: str) -> bool:
+    """Is the item in the bank, active and flagged for practice?"""
     doc = ctx.store.get("items", item_id)
     if doc is None:
         return False
     try:
-        return Item.from_doc(doc).status == "active"
+        item = Item.from_doc(doc)
     except (ValueError, TypeError):
         return False
+    return item.status == "active" and item.usage.practice
 
 
 def _deadline(duration_sec: int | None) -> str | None:

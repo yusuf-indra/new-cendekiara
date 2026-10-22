@@ -4,6 +4,10 @@ A practice set never holds an item of an exam package, whatever the status
 of that package: an exam item would leak its key through the explanation of
 the result (docs/10-security.md, "Exam engine security").
 
+Only the items that are flagged for practice (`usage.practice`) are offered:
+an item that is flagged for the exam or for study alone is not a practice
+item.
+
 The command returns the package (the ids of the items) and its content, both
 built by the server. `attempt.start` rebuilds the content from the ids, so a
 client can never smuggle an exam question into a practice attempt.
@@ -78,6 +82,9 @@ def _candidates(ctx: Context, args: PracticeBuildIn) -> list[Item]:
         except (ValueError, TypeError):
             continue
         if item.status != "active" or item.id in used:
+            continue
+        if not item.usage.practice:
+            # The item is flagged for another mode only: it is not offered.
             continue
         if args.exam_id and item.exam != args.exam_id:
             continue

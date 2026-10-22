@@ -172,6 +172,20 @@ def test_attempt_start_refuses_an_exam_item_in_a_practice_set(ctx: Context) -> N
     assert err.value.code == "invalid_args"
 
 
+def test_attempt_start_refuses_an_item_that_is_not_for_practice(ctx: Context) -> None:
+    # An item flagged for the exam or for study alone is not a practice item.
+    seed_package(ctx)
+    ctx.store.set(
+        "items",
+        "exam-only",
+        make_item("exam-only", usage={"exam": True, "practice": False, "study": True}),
+    )
+    package = {"exam": "tpa-bappenas", "sections": {"kuantitatif": ["exam-only"]}}
+    with pytest.raises(AppError) as err:
+        registry.execute("attempt.start", {"mode": "practice", "package": package}, ctx)
+    assert err.value.code == "invalid_args"
+
+
 # --- attempt.save ----------------------------------------------------------
 
 
@@ -613,6 +627,19 @@ def test_practice_build_never_uses_an_exam_package_item(ctx: Context) -> None:
     data = out.model_dump(by_alias=True)
     assert data["itemIds"] == ["practice-1"]
     assert "tpa-k-0101" not in json.dumps(data)
+
+
+def test_practice_build_never_uses_an_item_that_is_not_for_practice(ctx: Context) -> None:
+    # An item flagged for the exam or for study alone is not offered.
+    seed_package(ctx)
+    ctx.store.set("items", "practice-1", make_item("practice-1"))
+    ctx.store.set(
+        "items",
+        "exam-only",
+        make_item("exam-only", usage={"exam": True, "practice": False, "study": True}),
+    )
+    out = registry.execute("practice.build", {"count": 10}, ctx)
+    assert out.model_dump(by_alias=True)["itemIds"] == ["practice-1"]
 
 
 def test_practice_build_needs_login(guest_ctx: Context) -> None:
