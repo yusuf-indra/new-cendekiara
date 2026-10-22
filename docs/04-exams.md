@@ -110,9 +110,10 @@ autosave every 15 s and on change of question, submit, timings).
 | Study | one item per screen, `study.check` graded on the server | – (not stored) | no |
 
 Practice picks items from different families first; siblings only fill up
-the count. Practice uses only the `usage.practice` items, study only the
-`usage.study` items; an item flagged for another mode alone is never offered
-(it is in no exam package either).
+the count. A practice set only holds the items flagged for practice
+(`usage.practice`) and a study item only the items flagged for study
+(`usage.study`); an item flagged for another mode alone is never offered,
+and neither is an item of an exam package.
 
 Time per question (`timings`, seconds) is measured in the browser only while
 the question is visible and the page is visible, sent with autosave/submit,
