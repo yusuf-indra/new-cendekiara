@@ -158,15 +158,24 @@ work on a practice attempt.
   question that is not in the package is `invalid_args`.
 - `attempt.start` takes only which items a practice set uses: the server
   assembles the content, so a client can never smuggle a question into an
-  attempt. An item of an exam package is refused (`invalid_args`).
-- The server alone decides the time: `attempt.save` and `attempt.submit` are
-  refused with `deadline_passed` after `deadline + SUBMIT_GRACE_SEC`. The
-  submit grades the answers that were stored, never answers sent with it.
+  attempt. An item of an exam package is refused (`invalid_args`), and so is
+  an item that is not flagged for practice (`usage.practice`).
+- The server alone decides the time: `attempt.save` is refused with
+  `deadline_passed` after `deadline + SUBMIT_GRACE_SEC`. The submit is never
+  refused: it grades the answers that were stored, never answers sent with
+  it. A submit after the deadline + the grace is `late`: it grades the
+  answers that were saved in time and ignores the timings that come with it.
+- An attempt that ran out of time is submitted the same way when the owner
+  reads it (`attempt.get`, `attempt.history`), so a student sees a result
+  instead of an attempt that stays in progress. A submitted attempt is
+  immutable.
 - An attempt belongs to its uid: the attempt of another student is
   `not_found` (an admin may read it for support, and the read is logged).
-- `practice.build` and `study.next` only use items that are in no package, and
-  `study.check` refuses an item of a package (`not_found`): an exam item
-  would leak its key through the explanation of the answer.
+- `practice.build` and `study.next` only use items that are in no package
+  (and only the items flagged for their mode: `usage.practice` and
+  `usage.study`), and `study.check` refuses an item of a package
+  (`not_found`): an exam item would leak its key through the explanation of
+  the answer.
 
 ## Domains (planned; add rows as commands are built)
 

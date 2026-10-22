@@ -18,7 +18,7 @@ ids; timestamps are ISO-8601 UTC strings set by the server (`createdAt`,
 | `item_keys/{itemId}` | answers, explanations, transcripts, `aiCheck`. **Server only, never sent before submit.** | `item.*` (admin) |
 | `families/{familyId}` | near-identical questions: name, `method` (shared solution), optional video link | `family.*` |
 | `tests/{testId}` | a package: exam, sections → `itemIds`, duration, `free`, `wrongPenalty`, status | `test.*` (admin) |
-| `attempts/{attemptId}` | uid, testId (a practice attempt gets a generated id), mode, the assembled package snapshot, answers, timings, flags (all keyed by the question number), deadlineAt, status (in_progress/paused/submitted), result (scored only on submit), free, wrongPenalty | `attempt.*` |
+| `attempts/{attemptId}` | uid, testId (a practice attempt gets a generated id), mode, the assembled package snapshot, answers, timings, flags (all keyed by the question number), deadlineAt, status (in_progress/paused/submitted), late (submitted after the deadline + the grace), result (scored only on submit), free, wrongPenalty | `attempt.*` |
 | `question_stats/{questionId}` | increments from Exam mode: count, correct, blank, flagged, time histogram, option picks, discrimination data | worker after `attempt.submit` |
 | `leaderboard/{testId}__{uid}` | first Exam attempt per package: score, week, month, display name | worker |
 | `articles/{slug}` | blog: lang, title, markdown body, `math`, `sites`, status | `article.*` (admin) |
@@ -86,6 +86,7 @@ numbers are assigned on assembly, not stored.
   "flags": ["1"],                    // the flagged questions
   "deadlineAt": "2026-10-21T12:03:00+00:00",   // absent when the attempt has no timer
   "startedAt": "…", "updatedAt": "…", "pausedAt": null, "submittedAt": null,
+  "late": false,                    // submitted after the deadline + the grace
   "free": true,
   "wrongPenalty": 0,
   "durationSec": 180,
@@ -100,8 +101,8 @@ every passage), so it cannot identify an answer. A `multi` answer is a list
 of option ids; every other answer is a string.
 
 `result` (written on submit): `{"score": 512.0, "scoreType": "number",
-"correct": 21, "wrong": 7, "blank": 2, "wrongPenalty": 0.25, "sections":
-{"kuantitatif": {"correct": 8, "wrong": 3, "blank": 1, "marks": 7.25,
+"correct": 21, "wrong": 7, "blank": 2, "wrongPenalty": 0.25, "late": false,
+"sections": {"kuantitatif": {"correct": 8, "wrong": 3, "blank": 1, "marks": 7.25,
 "score": 470.0, "timeSec": 320.5}}}`. The score is always an estimate.
 
 `jobs/{jobId}`: `{"id", "name", "args": {…}, "actor": {"uid", "email"},

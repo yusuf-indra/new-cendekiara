@@ -110,15 +110,26 @@ autosave every 15 s and on change of question, submit, timings).
 | Study | one item per screen, `study.check` graded on the server | – (not stored) | no |
 
 Practice picks items from different families first; siblings only fill up
-the count. Study uses only `usage.study` items that are in no exam package.
+the count. Practice uses only the `usage.practice` items, study only the
+`usage.study` items; an item flagged for another mode alone is never offered
+(it is in no exam package either).
 
 Time per question (`timings`, seconds) is measured in the browser only while
 the question is visible and the page is visible, sent with autosave/submit,
 capped at 3 h per question by the server. Deadlines are enforced on the
-server: answers saved/submitted after `deadline + SUBMIT_GRACE_SEC` are refused
-in relevant operations; the server alone decides time (client timestamps are
-never trusted). `wrongPenalty` is applied by the core before/while scoring;
-results include per-section breakdowns from scoring plugins.
+server: an answer saved after `deadline + SUBMIT_GRACE_SEC` is refused; the
+server alone decides time (client timestamps are never trusted).
+
+Running out of time is not a dead end: the owner may always submit, and a
+submit after the deadline + the grace is graded from the answers that were
+saved in time and marked `late: true` (the timings that come with a late
+submit are ignored). An attempt that ran out of time is submitted the same
+way when the owner reads it (`attempt.get`, `attempt.history`), so the
+student sees a result instead of an attempt that stays in progress. A
+submitted attempt is immutable.
+
+`wrongPenalty` is applied by the core before/while scoring; results include
+per-section breakdowns from scoring plugins.
 
 The answers, the timings and the flags of an attempt are keyed by the
 **number** of the question (the global number the assembly gives it), never by
