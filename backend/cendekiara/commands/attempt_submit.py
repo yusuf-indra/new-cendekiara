@@ -4,6 +4,10 @@ The command never accepts final answers: it grades the answers `attempt.save`
 stored, so a client cannot send a better answer at the last moment. It may
 carry the last timings, which are stored but never change the score
 (docs/10-security.md, "Exam engine security").
+
+The owner may always submit: a student who runs out of time still gets a
+result. A submit past the deadline + the grace is `late`: it grades the
+answers that were saved in time and ignores the timings that come with it.
 """
 
 from __future__ import annotations
@@ -11,8 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from cendekiara.core import config
-from cendekiara.core.attempts import cap_timings, grade_attempt, is_past_deadline, own_attempt, questions_of
-from cendekiara.core.clock import now
+from cendekiara.core.attempts import is_past_deadline, own_attempt, submit_attempt
 from cendekiara.core.context import Context
 from cendekiara.core.errors import AppError
 from cendekiara.core.models import Model
@@ -38,25 +41,9 @@ class AttemptSubmit(Command[AttemptSubmitIn, AttemptSubmitOut]):
         attempt = own_attempt(ctx.store, args.attempt_id, uid)
         if attempt.status == "submitted":
             raise AppError("conflict", "This attempt is already submitted")
-        if is_past_deadline(attempt, settings.submit_grace_sec):
-            raise AppError("deadline_passed", "The time of this attempt is over")
-        result = grade_attempt(ctx.store, attempt)
-        submitted_at = now().isoformat()
-        update: dict[str, Any] = {
-            "status": "submitted",
-            "submittedAt": submitted_at,
-            "updatedAt": submitted_at,
-            "result": result.model_dump(by_alias=True),
-        }
-        if args.timings:
-            questions = questions_of(attempt)
-            timings = dict(attempt.timings)
-            timings.update(cap_timings(args.timings))
-            update["timings"] = {
-                number: seconds for number, seconds in timings.items() if number in questions
-            }
-        ctx.store.update("attempts", args.attempt_id, update)
-        ctx.log.info("attempt submitted: %s (%s)", args.attempt_id, uid)
+        late = is_past_deadline(attempt, settings.submit_grace_sec)
+        _, result = submit_attempt(ctx.store, attempt, late=late, timings=args.timings)
+        ctx.log.info("attempt submitted: %s (%s, late=%s)", args.attempt_id, uid, late)
         return AttemptSubmitOut(
             attempt_id=args.attempt_id,
             status="submitted",

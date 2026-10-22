@@ -350,23 +350,71 @@ def test_attempt_submit_needs_the_owner(ctx: Context, admin_ctx: Context, mem) -
         assert err.value.code == "not_found"
 
 
-def test_attempt_submit_is_refused_after_the_deadline_and_the_grace(ctx: Context) -> None:
+def test_attempt_submit_after_the_deadline_and_the_grace_grades_the_stored_answers(
+    ctx: Context,
+) -> None:
+    # A student who runs out of time still gets a result: the submit is
+    # never refused, it is graded from the answers saved in time.
     seed_package(ctx)
     attempt_id = start(ctx)
+    registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
     clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    out = registry.execute("attempt.submit", {"attempt_id": attempt_id}, ctx)
+    data = out.model_dump(by_alias=True)
+    assert data["status"] == "submitted"
+    assert data["result"]["late"] is True
+    assert data["result"]["correct"] == 1
+    doc = ctx.store.get("attempts", attempt_id)
+    assert doc is not None
+    assert doc["status"] == "submitted"
+    assert doc["late"] is True
+    assert doc["submittedAt"]
+    clock.freeze(FROZEN_NOW)
+
+
+def test_a_late_submit_counts_only_the_answers_saved_in_time(ctx: Context) -> None:
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    # An answer of a student who ran out of time is no longer saved.
     with pytest.raises(AppError) as err:
-        registry.execute("attempt.submit", {"attempt_id": attempt_id}, ctx)
+        registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"2": "C"}}, ctx)
     assert err.value.code == "deadline_passed"
+    out = registry.execute("attempt.submit", {"attempt_id": attempt_id}, ctx)
+    result = out.model_dump(by_alias=True)["result"]
+    assert result["correct"] == 1
+    assert result["wrong"] == 0
+    assert result["blank"] == 2
+    clock.freeze(FROZEN_NOW)
+
+
+def test_a_late_submit_ignores_the_timings_that_come_with_it(ctx: Context) -> None:
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    registry.execute(
+        "attempt.save",
+        {"attempt_id": attempt_id, "answers": {"1": "B"}, "timings": {"1": 10}},
+        ctx,
+    )
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    registry.execute("attempt.submit", {"attempt_id": attempt_id, "timings": {"1": 600}}, ctx)
+    doc = ctx.store.get("attempts", attempt_id)
+    assert doc is not None
+    assert doc["timings"]["1"] == 10.0
     clock.freeze(FROZEN_NOW)
 
 
 def test_attempt_submit_after_the_deadline_inside_the_grace_scores(ctx: Context) -> None:
+    # Inside the grace the submit is not late: the student still had time.
     seed_package(ctx)
     attempt_id = start(ctx)
     registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
     clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 30))
     out = registry.execute("attempt.submit", {"attempt_id": attempt_id}, ctx)
-    assert out.model_dump(by_alias=True)["result"]["correct"] == 1
+    result = out.model_dump(by_alias=True)["result"]
+    assert result["correct"] == 1
+    assert result["late"] is False
     clock.freeze(FROZEN_NOW)
 
 

@@ -81,6 +81,8 @@ class AttemptResult(Model):
     wrong: int = 0
     blank: int = 0
     wrong_penalty: float = 0.0
+    # True when the attempt was submitted after its deadline + the grace.
+    late: bool = False
     sections: dict[str, AttemptResultSection] = Field(default_factory=dict)
 
 
@@ -104,6 +106,8 @@ class Attempt(Model):
     updated_at: str | None = None
     paused_at: str | None = None
     submitted_at: str | None = None
+    # True when the attempt was submitted after its deadline + the grace.
+    late: bool = False
     free: bool = False
     wrong_penalty: float = 0.0
     duration_sec: int | None = None

@@ -5,6 +5,9 @@ timestamps are never trusted), the answers that are graded are the ones stored
 by `attempt.save`, and the answer keys are read here only, at submit time
 (docs/10-security.md, "Exam engine security").
 
+An attempt that ran out of time is still submitted: the answers that were
+saved in time are graded and the attempt is marked `late`.
+
 The answers, the timings and the flags of an attempt are keyed by the
 *number* of the question (the global number the assembly gives it), never by
 the id of the question inside its item: that id repeats in every item of a
@@ -197,6 +200,65 @@ def grade_attempt(store: Store, attempt: Attempt) -> AttemptResult:
         wrong_penalty=penalty,
         sections=_section_results(marked, score.sections, times),
     )
+
+
+def submit_attempt(
+    store: Store,
+    attempt: Attempt,
+    *,
+    late: bool,
+    timings: dict[str, Any] | None = None,
+) -> tuple[Attempt, AttemptResult]:
+    """Grade the stored answers of an attempt and store the result.
+
+    The attempt is over: the status becomes `submitted`, the result is
+    written and the attempt is immutable from then on. Only the answers
+    `attempt.save` stored are graded, never answers sent with the submit.
+
+    A late submit (past the deadline + the grace) grades the answers that
+    were saved in time and ignores the timings that come with it.
+    """
+    result = grade_attempt(store, attempt)
+    result.late = late
+    submitted_at = now().isoformat()
+    update: dict[str, Any] = {
+        "status": "submitted",
+        "submittedAt": submitted_at,
+        "updatedAt": submitted_at,
+        "late": late,
+        "result": result.model_dump(by_alias=True),
+    }
+    if timings and not late:
+        questions = questions_of(attempt)
+        merged = dict(attempt.timings)
+        merged.update(cap_timings(timings))
+        update["timings"] = {number: seconds for number, seconds in merged.items() if number in questions}
+    store.update("attempts", attempt.id, update)
+    return _stored_attempt(store, attempt.id), result
+
+
+def submit_if_late(store: Store, attempt: Attempt, grace_sec: int) -> Attempt:
+    """Submit an attempt that ran out of time (past its deadline + the grace).
+
+    A student who runs out of time must still get a result: the answers that
+    were saved in time are graded and the attempt is marked `late`. An
+    attempt that is not past its deadline is returned unchanged.
+    """
+    if attempt.status == "submitted" or not is_past_deadline(attempt, grace_sec):
+        return attempt
+    submitted, _ = submit_attempt(store, attempt, late=True)
+    return submitted
+
+
+def _stored_attempt(store: Store, attempt_id: str) -> Attempt:
+    """The attempt as it is stored now (after a write)."""
+    doc = store.get("attempts", attempt_id)
+    if doc is None:
+        raise AppError("not_found", "attempt not found")
+    try:
+        return Attempt.from_doc(doc)
+    except (ValueError, TypeError) as exc:
+        raise AppError("not_found", "attempt not found") from exc
 
 
 def _count_answers(
