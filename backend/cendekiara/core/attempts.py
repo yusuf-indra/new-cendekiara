@@ -16,15 +16,18 @@ def get_submit_grace_sec(settings: Any = None) -> int:
     if settings is not None and hasattr(settings, "submit_grace_sec"):
         try:
             return int(settings.submit_grace_sec)
-        except Exception:
+        except (TypeError, ValueError):
             pass
     try:
         from cendekiara.core import config
 
         s = config.settings
         if hasattr(s, "submit_grace_sec"):
-            return int(s.submit_grace_sec)
-    except Exception:
+            try:
+                return int(s.submit_grace_sec)
+            except (TypeError, ValueError):
+                pass
+    except (ImportError, AttributeError):
         pass
     return SUBMIT_GRACE_SEC
 
@@ -34,7 +37,7 @@ def cap_timings(timings: dict[str, float]) -> dict[str, float]:
     for k, v in timings.items():
         try:
             fv = float(v)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if fv < 0:
             fv = 0.0

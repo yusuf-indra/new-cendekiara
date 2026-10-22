@@ -29,9 +29,9 @@ def _items_in_any_test(store: Any) -> set[str]:
                 for _, item_ids in test.sections.items():
                     for iid in item_ids:
                         used.add(iid)
-            except Exception:
+            except (ValueError, TypeError):
                 continue
-    except Exception:
+    except (ValueError, TypeError):
         pass
     return used
 
@@ -45,7 +45,7 @@ class StudyNext(Command[StudyNextIn, StudyNextOut]):
         for row in rows:
             try:
                 item = Item.from_doc(row)
-            except Exception:
+            except (ValueError, TypeError):
                 continue
             if item.status != "active":
                 continue

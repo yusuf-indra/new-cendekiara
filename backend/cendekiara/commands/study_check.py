@@ -36,9 +36,9 @@ def _items_in_any_test(store: Any) -> set[str]:
                 for _, item_ids in test.sections.items():
                     for iid in item_ids:
                         used.add(iid)
-            except Exception:
+            except (ValueError, TypeError):
                 continue
-    except Exception:
+    except (ValueError, TypeError):
         pass
     return used
 
@@ -72,8 +72,8 @@ class StudyCheck(Command[StudyCheckIn, StudyCheckOut]):
             raise AppError("not_found", "item not found")
         try:
             item = Item.from_doc(item_doc)
-        except Exception:
-            raise AppError("not_found", "item not found")
+        except (ValueError, TypeError) as exc:
+            raise AppError("not_found", "item not found") from exc
         if item.status != "active" or not item.usage.study:
             raise AppError("not_found", "item not found")
         key_doc = ctx.store.get("item_keys", args.item_id)
@@ -81,8 +81,8 @@ class StudyCheck(Command[StudyCheckIn, StudyCheckOut]):
             raise AppError("not_found", "item not found")
         try:
             key = ItemKey.from_doc(key_doc)
-        except Exception:
-            raise AppError("not_found", "item not found")
+        except (ValueError, TypeError) as exc:
+            raise AppError("not_found", "item not found") from exc
         expected = key.answers.get(args.question_id)
         if expected is None:
             raise AppError("not_found", "item not found")

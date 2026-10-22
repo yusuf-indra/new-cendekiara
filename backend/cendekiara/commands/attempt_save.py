@@ -61,29 +61,23 @@ class AttemptSave(Command[AttemptSaveIn, AttemptSaveOut]):
         deadline_at = doc.get("deadlineAt") or doc.get("deadline_at")
         if deadline_at:
             try:
-                from datetime import datetime
+                from datetime import datetime, timedelta
 
-                # try parse
                 dl = deadline_at
+                dld = None
                 if isinstance(dl, str):
-                    # handle Z
                     try:
                         dld = datetime.fromisoformat(dl.replace("Z", "+00:00"))
-                    except Exception:
+                    except (TypeError, ValueError):
                         dld = None
-                else:
-                    dld = None
                 if dld is not None:
                     now_t = now()
                     grace = get_submit_grace_sec(ctx.settings)
-                    # if past deadline + grace -> refused
-                    from datetime import timedelta
-
                     if now_t > dld + timedelta(seconds=grace):
                         raise AppError("deadline_passed", "deadline passed")
             except AppError:
                 raise
-            except Exception:
+            except (TypeError, ValueError):
                 pass
 
         # merge
@@ -96,7 +90,7 @@ class AttemptSave(Command[AttemptSaveIn, AttemptSaveOut]):
             for k, v in args.timings.items():
                 try:
                     timings[k] = float(v)
-                except Exception:
+                except (TypeError, ValueError):
                     continue
             timings = cap_timings(timings)
         flags = list(doc.get("flags") or [])

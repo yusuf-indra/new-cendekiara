@@ -40,7 +40,7 @@ class AttemptSubmit(Command[AttemptSubmitIn, AttemptSubmitOut]):
             for k, v in args.timings.items():
                 try:
                     timings[k] = float(v)
-                except Exception:
+                except (TypeError, ValueError):
                     continue
             timings = cap_timings(timings)
             updates["timings"] = timings
@@ -51,7 +51,7 @@ class AttemptSubmit(Command[AttemptSubmitIn, AttemptSubmitOut]):
 
                 try:
                     dld = datetime.fromisoformat(str(deadline_at).replace("Z", "+00:00"))
-                except Exception:
+                except (TypeError, ValueError):
                     dld = None
                 if dld is not None:
                     now_t = now()
@@ -60,7 +60,7 @@ class AttemptSubmit(Command[AttemptSubmitIn, AttemptSubmitOut]):
                         raise AppError("deadline_passed", "deadline passed")
             except AppError:
                 raise
-            except Exception:
+            except (TypeError, ValueError):
                 pass
         result = grade_attempt(ctx.store, doc, doc.get("packageSnapshot") or doc.get("package_snapshot"))
         updates["status"] = "submitted"
