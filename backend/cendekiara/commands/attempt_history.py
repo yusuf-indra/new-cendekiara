@@ -2,12 +2,17 @@
 
 The history holds no answers and no timings: only what the student needs to
 recognise an attempt (docs/10-security.md, "Exam engine security").
+
+An attempt that ran out of time is submitted (late) here as well, so the
+history never shows an attempt that stays in progress for ever.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from cendekiara.core import config
+from cendekiara.core.attempts import submit_if_late
 from cendekiara.core.context import Context
 from cendekiara.core.models import Attempt, Model
 from cendekiara.core.registry import Command, command
@@ -25,6 +30,7 @@ class AttemptHistoryOut(Model):
 class AttemptHistory(Command[AttemptHistoryIn, AttemptHistoryOut]):
     def run(self, args: AttemptHistoryIn, ctx: Context) -> AttemptHistoryOut:
         uid = ctx.actor.require_uid()
+        settings = ctx.settings or config.settings
         attempts: list[dict[str, Any]] = []
         for row in ctx.store.list("attempts", limit=1000):
             if row.get("uid") != uid:
@@ -33,6 +39,7 @@ class AttemptHistory(Command[AttemptHistoryIn, AttemptHistoryOut]):
                 attempt = Attempt.from_doc(row)
             except (ValueError, TypeError):
                 continue
+            attempt = submit_if_late(ctx.store, attempt, settings.submit_grace_sec)
             attempts.append(_summary(attempt))
         attempts.sort(key=lambda row: str(row.get("startedAt") or ""), reverse=True)
         return AttemptHistoryOut(attempts=attempts[: args.limit])
@@ -54,6 +61,7 @@ def _summary(attempt: Attempt) -> dict[str, Any]:
         "blank": result.blank if result else 0,
         "startedAt": attempt.started_at,
         "submittedAt": attempt.submitted_at,
+        "late": attempt.late,
         "durationSec": attempt.duration_sec,
         "free": attempt.free,
     }

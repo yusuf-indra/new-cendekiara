@@ -464,6 +464,46 @@ def test_an_admin_may_read_any_attempt(ctx: Context, admin_ctx: Context, caplog)
     assert "u-admin" in caplog.text
 
 
+def test_attempt_get_submits_an_attempt_that_ran_out_of_time(ctx: Context) -> None:
+    # A student who runs out of time sees a result, not a stuck attempt.
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    out = registry.execute("attempt.get", {"attempt_id": attempt_id}, ctx)
+    attempt = out.model_dump(by_alias=True)["attempt"]
+    assert attempt["status"] == "submitted"
+    assert attempt["late"] is True
+    assert attempt["result"]["correct"] == 1
+    clock.freeze(FROZEN_NOW)
+
+
+def test_an_admin_read_does_not_change_the_attempt_of_a_student(ctx: Context, admin_ctx: Context) -> None:
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    out = registry.execute("attempt.get", {"attempt_id": attempt_id}, admin_ctx)
+    assert out.model_dump(by_alias=True)["attempt"]["status"] == "in_progress"
+    doc = ctx.store.get("attempts", attempt_id)
+    assert doc is not None
+    assert doc["status"] == "in_progress"
+    clock.freeze(FROZEN_NOW)
+
+
+def test_an_attempt_submitted_by_a_read_cannot_be_changed(ctx: Context) -> None:
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    registry.execute("attempt.get", {"attempt_id": attempt_id}, ctx)
+    with pytest.raises(AppError) as err:
+        registry.execute("attempt.submit", {"attempt_id": attempt_id}, ctx)
+    assert err.value.code == "conflict"
+    with pytest.raises(AppError) as err:
+        registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
+    assert err.value.code == "conflict"
+    clock.freeze(FROZEN_NOW)
+
+
 def test_attempt_history_holds_only_the_own_attempts(ctx: Context, mem) -> None:
     seed_package(ctx)
     attempt_id = start(ctx)
@@ -474,6 +514,23 @@ def test_attempt_history_holds_only_the_own_attempts(ctx: Context, mem) -> None:
     assert [row["id"] for row in rows] == [attempt_id]
     assert rows[0]["score"] is not None
     no_keys(rows)
+
+
+def test_attempt_history_shows_an_attempt_that_ran_out_of_time_as_submitted(
+    ctx: Context,
+) -> None:
+    seed_package(ctx)
+    attempt_id = start(ctx)
+    registry.execute("attempt.save", {"attempt_id": attempt_id, "answers": {"1": "B"}}, ctx)
+    clock.freeze(FROZEN_NOW + timedelta(seconds=180 + 61))
+    out = registry.execute("attempt.history", {}, ctx)
+    rows = out.model_dump(by_alias=True)["attempts"]
+    assert rows[0]["id"] == attempt_id
+    assert rows[0]["status"] == "submitted"
+    assert rows[0]["late"] is True
+    assert rows[0]["score"] is not None
+    no_keys(rows)
+    clock.freeze(FROZEN_NOW)
 
 
 def test_attempt_history_needs_login(guest_ctx: Context) -> None:
